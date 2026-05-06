@@ -1,0 +1,59 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+*.local.yaml
+*.local.yml
+.env
+.env.*
+!.env.example
+
+# Raw and generated audio data
+data/
+edge_node_mock/data/
+central_hub_mock/data/
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.m4a
+
+# SQLite databases and sidecar files
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+
+# Model exports and large ML artifacts
+models/
+*.tflite
+*.onnx
+*.pb
+*.h5
+*.keras
+*.ckpt
+
+# Generated outputs and logs
+outputs/
+logs/
+*.log
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

@@ -1,0 +1,319 @@
+perch_label_number,common_name,scientific_name
+9,Redpoll,Acanthis flammea
+10,Rifleman,Acanthisitta chloris
+64,Common Myna,Acridotheres tristis
+132,Common Sandpiper,Actitis hypoleucos
+336,Eurasian Skylark,Alauda arvensis
+370,Chukar,Alectoris chukar
+607,Double-banded Plover,Anarhynchus bicinctus
+611,Wrybill,Anarhynchus frontalis
+613,Greater Sand-Plover,Anarhynchus leschenaultii
+615,Siberian Sand-Plover,Anarhynchus mongolus
+618,Red-breasted Dotterel,Anarhynchus obscurus
+622,Red-capped Plover,Anarhynchus ruficapillus
+625,Oriental Plover,Anarhynchus veredus
+634,Chestnut Teal,Anas castanea
+635,Brown Teal,Anas chlorotis
+644,Gray Teal,Anas gracilis
+649,Mallard,Anas platyrhynchos
+653,Pacific Black Duck,Anas superciliosa
+715,Australasian Darter,Anhinga novaehollandiae
+748,Blue-gray Noddy,Anous ceruleus
+749,Black Noddy,Anous minutus
+750,Brown Noddy,Anous stolidus
+753,Graylag Goose,Anser anser
+789,Red Wattlebird,Anthochaera carunculata
+798,New Zealand Bellbird,Anthornis melanura
+862,New Zealand Pipit,Anthus novaeseelandiae
+950,Kerguelen Petrel,Aphrodroma brevirostris
+987,Emperor Penguin,Aptenodytes forsteri
+988,King Penguin,Aptenodytes patagonicus
+990,North Island Brown Kiwi,Apteryx mantelli
+991,Great Spotted Kiwi,Apteryx maxima
+992,Little Spotted Kiwi,Apteryx owenii
+993,Okarito Brown Kiwi,Apteryx rowi
+1009,Pacific Swift,Apus pacificus
+1019,Wedge-tailed Eagle,Aquila audax
+1095,Great Egret,Ardea alba
+1096,Gray Heron,Ardea cinerea
+1098,Eastern Cattle-Egret,Ardea coromanda
+1104,Pacific Heron,Ardea pacifica
+1107,Buller's Shearwater,Ardenna bulleri
+1108,Flesh-footed Shearwater,Ardenna carneipes
+1109,Pink-footed Shearwater,Ardenna creatopus
+1110,Great Shearwater,Ardenna gravis
+1111,Sooty Shearwater,Ardenna grisea
+1112,Wedge-tailed Shearwater,Ardenna pacifica
+1113,Short-tailed Shearwater,Ardenna tenuirostris
+1122,Ruddy Turnstone,Arenaria interpres
+1201,Masked Woodswallow,Artamus personatus
+1202,White-browed Woodswallow,Artamus superciliosus
+1313,Little Owl,Athene noctua
+1428,Hardhead,Aythya australis
+1433,New Zealand Scaup,Aythya novaeseelandiae
+1474,Upland Sandpiper,Bartramia longicauda
+1682,Australasian Bittern,Botaurus poiciloptilus
+1743,Canada Goose,Branta canadensis
+1833,Bulwer's Petrel,Bulweria bulwerii
+1908,Sulphur-crested Cockatoo,Cacatua galerita
+1930,Fan-tailed Cuckoo,Cacomantis flabelliformis
+1985,Sharp-tailed Sandpiper,Calidris acuminata
+1986,Sanderling,Calidris alba
+1987,Dunlin,Calidris alpina
+1988,Baird's Sandpiper,Calidris bairdii
+1989,Red Knot,Calidris canutus
+1990,Broad-billed Sandpiper,Calidris falcinellus
+1991,Curlew Sandpiper,Calidris ferruginea
+1992,White-rumped Sandpiper,Calidris fuscicollis
+1995,Western Sandpiper,Calidris mauri
+1996,Pectoral Sandpiper,Calidris melanotos
+1997,Little Stint,Calidris minuta
+1998,Least Sandpiper,Calidris minutilla
+2000,Ruff,Calidris pugnax
+2003,Red-necked Stint,Calidris ruficollis
+2005,Buff-breasted Sandpiper,Calidris subruficollis
+2007,Great Knot,Calidris tenuirostris
+2016,North Island Kokako,Callaeas wilsoni
+2032,California Quail,Callipepla californica
+2063,Cory's Shearwater,Calonectris borealis
+2066,Streaked Shearwater,Calonectris leucomelas
+2251,European Goldfinch,Carduelis carduelis
+2465,Cape Barren Goose,Cereopsis novaehollandiae
+2533,Shining Bronze-Cuckoo,Chalcites lucidus
+2536,Little Bronze-Cuckoo,Chalcites minutillus
+2581,Semipalmated Plover,Charadrius semipalmatus
+2603,Maned Duck,Chenonetta jubata
+2653,Black-fronted Tern,Chlidonias albostriatus
+2654,Whiskered Tern,Chlidonias hybrida
+2655,White-winged Tern,Chlidonias leucopterus
+2656,Black Tern,Chlidonias niger
+2672,European Greenfinch,Chloris chloris
+2808,Black-billed Gull,Chroicocephalus bulleri
+2813,Silver Gull,Chroicocephalus novaehollandiae
+3007,Swamp Harrier,Circus approximans
+3199,Northern Bobwhite,Colinus virginianus
+3251,Rock Pigeon,Columba livia
+3406,Black-faced Cuckooshrike,Coracina novaehollandiae
+3448,Rook,Corvus frugilegus
+3746,Oriental Cuckoo,Cuculus optatus
+3855,Yellow-crowned Parakeet,Cyanoramphus auriceps
+3858,Malherbe's Parakeet,Cyanoramphus malherbi
+3859,Red-crowned Parakeet,Cyanoramphus novaezelandiae
+3879,Black Swan,Cygnus atratus
+3884,Mute Swan,Cygnus olor
+3954,Laughing Kookaburra,Dacelo novaeguineae
+3975,Pintado Petrel,Daption capense
+4056,Plumed Whistling-Duck,Dendrocygna eytoni
+4257,Antipodean Albatross,Diomedea antipodensis
+4259,Southern Royal Albatross,Diomedea epomophora
+4260,Snowy Albatross,Diomedea exulans
+4261,Northern Royal Albatross,Diomedea sanfordi
+4495,Little Egret,Egretta garzetta
+4497,White-faced Heron,Egretta novaehollandiae
+4500,Pacific Reef-Heron,Egretta sacra
+4604,Cirl Bunting,Emberiza cirlus
+4605,Yellowhammer,Emberiza citrinella
+4688,Galah,Eolophus roseicapilla
+4806,Red-kneed Dotterel,Erythrogonys cinctus
+4873,Moseley's Rockhopper Penguin,Eudyptes moseleyi
+4874,Fiordland Penguin,Eudyptes pachyrhynchus
+4875,Snares Penguin,Eudyptes robustus
+4876,Royal Penguin,Eudyptes schlegeli
+4877,Erect-crested Penguin,Eudyptes sclateri
+4878,Little Penguin,Eudyptula minor
+5032,Dollarbird,Eurystomus orientalis
+5069,Nankeen Kestrel,Falco cenchroides
+5087,New Zealand Falcon,Falco novaeseelandiae
+5226,Great Frigatebird,Fregata minor
+5227,Black-bellied Storm-Petrel,Fregetta tropica
+5228,Common Chaffinch,Fringilla coelebs
+5246,Eurasian Coot,Fulica atra
+5253,Southern Fulmar,Fulmarus glacialoides
+5318,Latham's Snipe,Gallinago hardwickii
+5333,Eurasian Moorhen,Gallinula chloropus
+5337,Weka,Gallirallus australis
+5342,Buff-banded Rail,Gallirallus philippensis
+5412,Australian Tern,Gelochelidon macrotarsa
+5413,Gull-billed Tern,Gelochelidon nilotica
+5506,Gray Gerygone,Gerygone igata
+5526,Oriental Pratincole,Glareola maldivarum
+5768,Australian Magpie,Gymnorhina tibicen
+5806,South Island Oystercatcher,Haematopus finschi
+5813,Variable Oystercatcher,Haematopus unicolor
+5843,Blue Petrel,Halobaena caerulea
+5961,New Zealand Pigeon,Hemiphaga novaeseelandiae
+6053,Pallid Cuckoo,Heteroscenes pallidus
+6087,Pied Stilt,Himantopus leucocephalus
+6089,Black Stilt,Himantopus novaezelandiae
+6098,White-throated Needletail,Hirundapus caudacutus
+6113,Welcome Swallow,Hirundo neoxena
+6175,Leach's Storm-Petrel,Hydrobates leucorhous
+6177,Swinhoe's Storm-Petrel,Hydrobates monorhis
+6187,Caspian Tern,Hydroprogne caspia
+6310,Blue Duck,Hymenolaimus malacorhynchos
+6881,Kelp Gull,Larus dominicanus
+6892,Pacific Gull,Larus pacificus
+7114,New Zealand King Shag,Leucocarbo carunculatus
+7123,Laughing Gull,Leucophaeus atricilla
+7126,Franklin's Gull,Leucophaeus pipixcan
+7170,Asian Dowitcher,Limnodromus semipalmatus
+7191,Hudsonian Godwit,Limosa haemastica
+7192,Bar-tailed Godwit,Limosa lapponica
+7193,Black-tailed Godwit,Limosa limosa
+7519,Southern Giant-Petrel,Macronectes giganteus
+7520,Northern Giant-Petrel,Macronectes halli
+7598,Pink-eared Duck,Malacorhynchus membranaceus
+7718,Yellow-eyed Penguin,Megadyptes antipodes
+8055,Little Pied Cormorant,Microcarbo melanoleucos
+8143,Black Kite,Milvus migrans
+8222,Whitehead,Mohoua albicilla
+8223,Pipipi,Mohoua novaeseelandiae
+8242,Black-faced Monarch,Monarcha melanopsis
+8299,Cape Gannet,Morus capensis
+8300,Australasian Gannet,Morus serrator
+8399,Satin Flycatcher,Myiagra cyanoleuca
+8813,New Zealand Kaka,Nestor meridionalis
+8814,Kea,Nestor notabilis
+8862,Morepork,Ninox novaeseelandiae
+8935,Stitchbird,Notiomystis cincta
+8944,Far Eastern Curlew,Numenius madagascariensis
+8945,Little Curlew,Numenius minutus
+8946,Eurasian Whimbrel,Numenius phaeopus
+8947,Bristle-thighed Curlew,Numenius tahitiensis
+8949,Helmeted Guineafowl,Numida meleagris
+8962,Nankeen Night Heron,Nycticorax caledonicus
+8998,Wilson's Storm-Petrel,Oceanites oceanicus
+9230,Bridled Tern,Onychoprion anaethetus
+9231,Sooty Tern,Onychoprion fuscatus
+9232,Gray-backed Tern,Onychoprion lunatus
+9550,Slender-billed Prion,Pachyptila belcheri
+9551,Fulmar Prion,Pachyptila crassirostris
+9552,Antarctic Prion,Pachyptila desolata
+9553,Fairy Prion,Pachyptila turtur
+9554,Broad-billed Prion,Pachyptila vittata
+9725,House Sparrow,Passer domesticus
+9791,Indian Peafowl,Pavo cristatus
+9796,White-faced Storm-Petrel,Pelagodroma marina
+9802,South Georgia Diving-Petrel,Pelecanoides georgicus
+9804,Common Diving-Petrel,Pelecanoides urinatrix
+9805,Australian Pelican,Pelecanus conspicillatus
+9892,Gray Partridge,Perdix perdix
+9933,Fairy Martin,Petrochelidon ariel
+9936,Tree Martin,Petrochelidon nigricans
+9947,North Island Robin,Petroica longipes
+9948,Tomtit,Petroica macrocephala
+9996,White-tailed Tropicbird,Phaethon lepturus
+9997,Red-tailed Tropicbird,Phaethon rubricauda
+10029,Great Cormorant,Phalacrocorax carbo
+10034,Spotted Shag,Phalacrocorax punctatus
+10035,Little Black Cormorant,Phalacrocorax sulcirostris
+10036,Pied Cormorant,Phalacrocorax varius
+10039,Red Phalarope,Phalaropus fulicarius
+10040,Red-necked Phalarope,Phalaropus lobatus
+10041,Wilson's Phalarope,Phalaropus tricolor
+10060,Ring-necked Pheasant,Phasianus colchicus
+10111,South Island Saddleback,Philesturnus carunculatus
+10112,North Island Saddleback,Philesturnus rufusater
+10137,Laysan Albatross,Phoebastria immutabilis
+10140,Light-mantled Albatross,Phoebetria palpebrata
+10549,Yellow-billed Spoonbill,Platalea flavipes
+10552,Royal Spoonbill,Platalea regia
+10555,Crimson Rosella,Platycercus elegans
+10556,Eastern Rosella,Platycercus eximius
+10633,Glossy Ibis,Plegadis falcinellus
+10711,American Golden-Plover,Pluvialis dominica
+10712,Pacific Golden-Plover,Pluvialis fulva
+10713,Black-bellied Plover,Pluvialis squatarola
+10726,Great Crested Grebe,Podiceps cristatus
+10901,Hoary-headed Grebe,Poliocephalus poliocephalus
+10998,New Zealand Fernbird,Poodytes punctatus
+11019,South Island Takahe,Porphyrio hochstetteri
+11022,Australasian Swamphen,Porphyrio melanotus
+11029,Australian Crake,Porzana fluminea
+11142,White-chinned Petrel,Procellaria aequinoctialis
+11143,Gray Petrel,Procellaria cinerea
+11144,Parkinson's Petrel,Procellaria parkinsoni
+11145,Westland Petrel,Procellaria westlandica
+11186,Tui,Prosthemadera novaeseelandiae
+11195,Dunnock,Prunella modularis
+11276,Tahiti Petrel,Pseudobulweria rostrata
+11404,Rose-ringed Parakeet,Psittacula krameri
+11475,Phoenix Petrel,Pterodroma alba
+11477,Chatham Islands Petrel,Pterodroma axillaris
+11480,White-necked Petrel,Pterodroma cervicalis
+11481,Cook's Petrel,Pterodroma cookii
+11482,Juan Fernandez Petrel,Pterodroma externa
+11484,Gray-faced Petrel,Pterodroma gouldi
+11485,Herald Petrel,Pterodroma heraldica
+11488,Mottled Petrel,Pterodroma inexpectata
+11489,White-headed Petrel,Pterodroma lessonii
+11490,Gould's Petrel,Pterodroma leucoptera
+11492,Magenta Petrel,Pterodroma magentae
+11493,Soft-plumaged Petrel,Pterodroma mollis
+11494,Kermadec Petrel,Pterodroma neglecta
+11495,Black-winged Petrel,Pterodroma nigripennis
+11498,Providence Petrel,Pterodroma solandri
+11600,Rose-crowned Fruit-Dove,Ptilinopus regina
+11660,Little Shearwater,Puffinus assimilis
+11665,Fluttering Shearwater,Puffinus gavia
+11666,Hutton's Shearwater,Puffinus huttoni
+11669,Christmas Shearwater,Puffinus nativitatis
+11670,Newell's Shearwater,Puffinus newelli
+11673,Manx Shearwater,Puffinus puffinus
+11706,Red-vented Bulbul,Pycnonotus cafer
+11737,Adelie Penguin,Pygoscelis adeliae
+11957,Red-necked Avocet,Recurvirostra novaehollandiae
+12079,New Zealand Fantail,Rhipidura fuliginosa
+12519,Channel-billed Cuckoo,Scythrops novaehollandiae
+12742,Northern Shoveler,Spatula clypeata
+12749,Australasian Shoveler,Spatula rhynchotis
+12793,Magellanic Penguin,Spheniscus magellanicus
+12816,Spotted Dove,Spilopelia chinensis
+12974,Brown Skua,Stercorarius antarcticus
+12976,Long-tailed Jaeger,Stercorarius longicaudus
+12977,South Polar Skua,Stercorarius maccormicki
+12978,Parasitic Jaeger,Stercorarius parasiticus
+12979,Pomarine Jaeger,Stercorarius pomarinus
+12986,Common Tern,Sterna hirundo
+12987,Arctic Tern,Sterna paradisaea
+12989,White-fronted Tern,Sterna striata
+12990,Black-naped Tern,Sterna sumatrana
+12996,Little Tern,Sternula albifrons
+13000,Australian Fairy Tern,Sternula nereis
+13066,African Collared-Dove,Streptopelia roseogrisea
+13078,Kakapo,Strigops habroptilus
+13144,European Starling,Sturnus vulgaris
+13154,Masked Booby,Sula dactylatra
+13156,Brown Booby,Sula leucogaster
+13158,Red-footed Booby,Sula sula
+13286,Brown Quail,Synoicus ypsilophorus
+13312,Australasian Grebe,Tachybaptus novaehollandiae
+13363,Australian Shelduck,Tadorna tadornoides
+13364,Paradise Shelduck,Tadorna variegata
+13589,Buller's Albatross,Thalassarche bulleri
+13590,Indian Yellow-nosed Albatross,Thalassarche carteri
+13591,White-capped Albatross,Thalassarche cauta
+13593,Chatham Albatross,Thalassarche eremita
+13594,Black-browed Albatross,Thalassarche melanophris
+13595,Salvin's Albatross,Thalassarche salvini
+13598,Great Crested Tern,Thalasseus bergii
+13603,Antarctic Petrel,Thalassoica antarctica
+13664,Black-fronted Dotterel,Thinornis melanops
+13665,Shore Plover,Thinornis novaeseelandiae
+13691,Australian Ibis,Threskiornis molucca
+13788,Sacred Kingfisher,Todiramphus sanctus
+13912,Black-tailed Nativehen,Tribonyx ventralis
+13949,Gray-tailed Tattler,Tringa brevipes
+13951,Lesser Yellowlegs,Tringa flavipes
+13954,Wandering Tattler,Tringa incana
+13956,Common Greenshank,Tringa nebularia
+13960,Marsh Sandpiper,Tringa stagnatilis
+14114,Eurasian Blackbird,Turdus merula
+14130,Song Thrush,Turdus philomelos
+14216,Eastern Barn Owl,Tyto javanica
+14271,Long-tailed Koel,Urodynamis taitensis
+14325,Masked Lapwing,Vanellus miles
+14506,Terek Sandpiper,Xenus cinereus
+14618,Baillon's Crake,Zapornia pusilla
+14619,Spotless Crake,Zapornia tabuensis
+14731,Silvereye,Zosterops lateralis
