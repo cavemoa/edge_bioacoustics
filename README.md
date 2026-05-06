@@ -34,6 +34,11 @@ Current Phase 1 progress:
   into the hub SQLite database.
 - `sender_daemon.py` is implemented for MessagePack sync from the edge DB to the
   localhost hub API.
+- `watchdog_alert.py` is implemented for healthy, stale, and missing telemetry
+  checks against the hub database.
+- The end-to-end Phase 1 desktop rehearsal has been run from fresh mock
+  databases, with the latest report at
+  [docs/02_implementation/phase1_e2e_rehearsal_report.json](docs/02_implementation/phase1_e2e_rehearsal_report.json).
 - A teaching notebook walks through the capture loop step by step:
   [notebooks/04A_bio_capture_loop_walkthrough.ipynb](notebooks/04A_bio_capture_loop_walkthrough.ipynb).
 - The notebook uses a bundled 120-second teaching clip:
@@ -65,7 +70,7 @@ The architecture is built around four scripts:
 1. `edge_node_mock/src/bio_capture_loop.py`: implemented edge audio buffering, Perch inference, gating, audio retention, and edge database writes.
 2. `edge_node_mock/src/sender_daemon.py`: implemented edge database sync, MessagePack serialization, desktop mock telemetry, and HTTP transport.
 3. `central_hub_mock/src/ingestion_api.py`: implemented hub-side FastAPI receiver, API key authentication, payload validation, and master database insertion.
-4. `watchdog_alert.py`: planned hub-side stale telemetry detection and alerting.
+4. `central_hub_mock/src/watchdog_alert.py`: implemented hub-side stale telemetry detection and dummy alerting.
 
 Supporting scripts currently include:
 
@@ -139,10 +144,22 @@ Preview a sender payload without network traffic:
 .venv/bin/python edge_node_mock/src/sender_daemon.py --config edge_node_mock/config/edge_config.local.yaml --limit 3 --dry-run
 ```
 
+Run the hub watchdog:
+
+```bash
+.venv/bin/python central_hub_mock/src/watchdog_alert.py --config central_hub_mock/config/hub_config.local.yaml
+```
+
+The latest end-to-end rehearsal report is stored at:
+
+```text
+docs/02_implementation/phase1_e2e_rehearsal_report.json
+```
+
 Run the unit tests:
 
 ```bash
-.venv/bin/python -m unittest tests.test_bio_capture_loop tests.test_ingestion_api tests.test_perch_inspection tests.test_phase1_setup tests.test_sender_daemon
+.venv/bin/python -m unittest tests.test_bio_capture_loop tests.test_ingestion_api tests.test_perch_inspection tests.test_phase1_setup tests.test_sender_daemon tests.test_watchdog_alert
 ```
 
 ## Teaching Notebook
@@ -210,6 +227,7 @@ tests/
 - [Phase 1 implementation plan](docs/02_implementation/Phase_1_implementation_plan.md)
 - [Phase 1 schema decisions](docs/02_implementation/schema_decisions.md)
 - [Perch model inspection report](docs/02_implementation/perch_model_inspection_report.json)
+- [Phase 1 end-to-end rehearsal report](docs/02_implementation/phase1_e2e_rehearsal_report.json)
 - [Capture-loop teaching notebook](notebooks/04A_bio_capture_loop_walkthrough.ipynb)
 - [SQLite schema ideas](docs/00_ideas/rpi_sqlite_schema.md)
 - [Sound gate notes](docs/00_ideas/sound_gate.md)

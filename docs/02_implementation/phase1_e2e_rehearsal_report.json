@@ -1,0 +1,46 @@
+{
+  "created_at_utc": "2026-05-06T21:48:00.992735Z",
+  "commands": {
+    "capture": ".venv/bin/python edge_node_mock/src/bio_capture_loop.py --config edge_node_mock/config/edge_config.local.yaml --iterations 5",
+    "api": "HUB_CONFIG=central_hub_mock/config/hub_config.local.yaml .venv/bin/python -m uvicorn central_hub_mock.src.ingestion_api:app --host 127.0.0.1 --port 8000",
+    "sender": ".venv/bin/python edge_node_mock/src/sender_daemon.py --config edge_node_mock/config/edge_config.local.yaml --limit 5",
+    "watchdog": ".venv/bin/python central_hub_mock/src/watchdog_alert.py --config central_hub_mock/config/hub_config.local.yaml"
+  },
+  "edge": {
+    "buffer_count": 5,
+    "pending_count": 0,
+    "synced_count": 5,
+    "embedding_segment_count": 15,
+    "vector_count": 15,
+    "vector_table": "perch_vectors",
+    "retained_audio_count": 5
+  },
+  "hub": {
+    "master_buffer_count": 5,
+    "embedding_segment_count": 15,
+    "vector_count": 15,
+    "vector_table": "hub_perch_vectors",
+    "latest_telemetry_timestamp": "2026-05-06T21:47:27.392592Z",
+    "ingestion_batch_count": 1,
+    "health_metric_count": 1
+  },
+  "transport": {
+    "messagepack_payload_bytes": 102235,
+    "detection_count": 5,
+    "accepted_buffer_ids": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "checks": {
+    "master_buffer_count_equals_sent_edge_buffer_count": true,
+    "master_vector_count_equals_master_buffer_count_times_3": true,
+    "edge_pending_count_is_zero": true,
+    "edge_segment_count_equals_edge_buffer_count_times_3": true,
+    "edge_vector_count_equals_edge_buffer_count_times_3": true,
+    "watchdog_reports_healthy": true
+  }
+}

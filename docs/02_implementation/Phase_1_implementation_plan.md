@@ -609,43 +609,43 @@ Test:
 
 6.17 [x] Stop the API server, create one new pending edge row, rerun the sender, and confirm the row is not incorrectly marked `synced`.
 
-## 7. [ ] Build The Watchdog Alert Mock
+## 7. [x] Build The Watchdog Alert Mock
 
-7.1 [ ] Implement `watchdog_alert.py` in the central hub mock workspace.
+7.1 [x] Implement `watchdog_alert.py` in the central hub mock workspace.
 
-7.2 [ ] Query the master `health_metrics` table for the latest row for `device_id = 'pi_01'`.
+7.2 [x] Query the master `health_metrics` table for the latest row for `device_id = 'pi_01'`.
 
-7.3 [ ] Compare the latest `timestamp_utc` with the current UTC time.
+7.3 [x] Compare the latest `timestamp_utc` with the current UTC time.
 
-7.4 [ ] Treat timestamps older than 75 minutes as stale.
+7.4 [x] Treat timestamps older than 75 minutes as stale.
 
-7.5 [ ] For Phase 1, print a dummy alert instead of sending Telegram, Discord, or email.
+7.5 [x] For Phase 1, print a dummy alert instead of sending Telegram, Discord, or email.
 
-7.6 [ ] Return a non-zero exit code when the device is stale.
+7.6 [x] Return a non-zero exit code when the device is stale.
 
-7.7 [ ] Return zero when the device is healthy.
+7.7 [x] Return zero when the device is healthy.
 
-7.8 [ ] Add a short `--config` option so the master DB path, device ID, and stale threshold come from YAML.
+7.8 [x] Add a short `--config` option so the master DB path, device ID, and stale threshold come from YAML.
 
 Deliverable:
 
-7.9 [ ] The watchdog can distinguish healthy, stale, and missing telemetry states.
+7.9 [x] The watchdog can distinguish healthy, stale, and missing telemetry states.
 
 Test:
 
-7.10 [ ] Insert or update one health metric timestamp to the current UTC time and confirm the script reports healthy.
+7.10 [x] Insert or update one health metric timestamp to the current UTC time and confirm the script reports healthy.
 
-7.11 [ ] Manually set the latest timestamp to more than 75 minutes old and confirm the script prints a dummy alert.
+7.11 [x] Manually set the latest timestamp to more than 75 minutes old and confirm the script prints a dummy alert.
 
-7.12 [ ] Run against an empty health table and confirm it reports missing telemetry cleanly.
+7.12 [x] Run against an empty health table and confirm it reports missing telemetry cleanly.
 
-## 8. [ ] Run The End-To-End Desktop Rehearsal
+## 8. [x] Run The End-To-End Desktop Rehearsal
 
-8.1 [ ] Delete or archive old mock databases.
+8.1 [x] Delete or archive old mock databases.
 
-8.2 [ ] Initialize fresh edge and master databases.
+8.2 [x] Initialize fresh edge and master databases.
 
-8.3 [ ] Run the capture loop for a bounded number of buffers.
+8.3 [x] Run the capture loop for a bounded number of buffers.
 
 Suggested command:
 
@@ -653,13 +653,13 @@ Suggested command:
 python bio_capture_loop.py --config edge_node_mock/config/edge_config.local.yaml --iterations 5
 ```
 
-8.4 [ ] Start the local hub API.
+8.4 [x] Start the local hub API.
 
-8.5 [ ] Run the sender daemon once.
+8.5 [x] Run the sender daemon once.
 
-8.6 [ ] Run the watchdog.
+8.6 [x] Run the watchdog.
 
-8.7 [ ] Export a short verification report.
+8.7 [x] Export a short verification report.
 
 Suggested report values:
 
@@ -676,11 +676,11 @@ MessagePack payload byte size
 
 Deliverable:
 
-8.8 [ ] One local command sequence proves the whole desktop mock pipeline from audio fixture to hub database and watchdog health check.
+8.8 [x] One local command sequence proves the whole desktop mock pipeline from audio fixture to hub database and watchdog health check.
 
 Test:
 
-8.9 [ ] Confirm all generated counts are internally consistent:
+8.9 [x] Confirm all generated counts are internally consistent:
 
 ```text
 master buffer count equals sent edge buffer count
