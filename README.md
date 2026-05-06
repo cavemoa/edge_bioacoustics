@@ -30,6 +30,10 @@ Current Phase 1 progress:
   `[3, 1536]`.
 - `bio_capture_loop.py` is implemented for bounded desktop runs against raw
   mock audio.
+- `ingestion_api.py` is implemented for authenticated MessagePack batch ingest
+  into the hub SQLite database.
+- `sender_daemon.py` is implemented for MessagePack sync from the edge DB to the
+  localhost hub API.
 - A teaching notebook walks through the capture loop step by step:
   [notebooks/04A_bio_capture_loop_walkthrough.ipynb](notebooks/04A_bio_capture_loop_walkthrough.ipynb).
 - The notebook uses a bundled 120-second teaching clip:
@@ -59,8 +63,8 @@ device health with a passive watchdog.
 The architecture is built around four scripts:
 
 1. `edge_node_mock/src/bio_capture_loop.py`: implemented edge audio buffering, Perch inference, gating, audio retention, and edge database writes.
-2. `sender_daemon.py`: planned edge database sync, MessagePack serialization, mock or real telemetry, and HTTP transport.
-3. `ingestion_api.py`: planned hub-side FastAPI receiver, API key authentication, payload validation, and master database insertion.
+2. `edge_node_mock/src/sender_daemon.py`: implemented edge database sync, MessagePack serialization, desktop mock telemetry, and HTTP transport.
+3. `central_hub_mock/src/ingestion_api.py`: implemented hub-side FastAPI receiver, API key authentication, payload validation, and master database insertion.
 4. `watchdog_alert.py`: planned hub-side stale telemetry detection and alerting.
 
 Supporting scripts currently include:
@@ -120,10 +124,25 @@ Run a bounded capture-loop test:
 .venv/bin/python edge_node_mock/src/bio_capture_loop.py --config edge_node_mock/config/edge_config.local.yaml --iterations 3
 ```
 
+Start the hub API and send pending edge rows:
+
+```bash
+HUB_CONFIG=central_hub_mock/config/hub_config.local.yaml \
+  .venv/bin/python -m uvicorn central_hub_mock.src.ingestion_api:app --host 127.0.0.1 --port 8000
+
+.venv/bin/python edge_node_mock/src/sender_daemon.py --config edge_node_mock/config/edge_config.local.yaml --limit 3
+```
+
+Preview a sender payload without network traffic:
+
+```bash
+.venv/bin/python edge_node_mock/src/sender_daemon.py --config edge_node_mock/config/edge_config.local.yaml --limit 3 --dry-run
+```
+
 Run the unit tests:
 
 ```bash
-.venv/bin/python -m unittest tests.test_bio_capture_loop tests.test_perch_inspection tests.test_phase1_setup
+.venv/bin/python -m unittest tests.test_bio_capture_loop tests.test_ingestion_api tests.test_perch_inspection tests.test_phase1_setup tests.test_sender_daemon
 ```
 
 ## Teaching Notebook

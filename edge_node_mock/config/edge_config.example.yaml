@@ -14,6 +14,10 @@ nz_bird_label_path: labels/north_island_nz_perch_lablel.csv
 embedding_dim: 1536
 hub_ingest_url: http://127.0.0.1:8000/ingest_batch
 api_key: replace-with-local-dev-key
+telemetry_defaults:
+  cpu_temp_c: 45.0
+  battery_voltage: 12.4
+  solar_amps: 0.0
 bio_threshold: 2.0
 noise_threshold: 5.0
 noise_labels:

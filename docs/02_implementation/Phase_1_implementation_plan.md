@@ -481,17 +481,17 @@ Test:
 
 4A.12 [x] Validate the notebook JSON and confirm it contains runnable code cells for the capture-loop walkthrough.
 
-## 5. [ ] Build The Local Hub Ingestion API
+## 5. [x] Build The Local Hub Ingestion API
 
-5.1 [ ] Implement `ingestion_api.py` in the central hub mock workspace.
+5.1 [x] Implement `ingestion_api.py` in the central hub mock workspace.
 
-5.2 [ ] Expose a localhost FastAPI endpoint:
+5.2 [x] Expose a localhost FastAPI endpoint:
 
 ```text
 POST /ingest_batch
 ```
 
-5.3 [ ] Load hub settings from YAML rather than hardcoding the master DB path, API key, device allowlist, or embedding dimension.
+5.3 [x] Load hub settings from YAML rather than hardcoding the master DB path, API key, device allowlist, or embedding dimension.
 
 Suggested desktop pattern:
 
@@ -500,15 +500,15 @@ $env:HUB_CONFIG = "central_hub_mock/config/hub_config.local.yaml"
 uvicorn ingestion_api:app --host 127.0.0.1 --port 8000
 ```
 
-5.4 [ ] Require an `X-API-Key` header.
+5.4 [x] Require an `X-API-Key` header.
 
-5.5 [ ] Reject requests with a missing or incorrect API key.
+5.5 [x] Reject requests with a missing or incorrect API key.
 
-5.6 [ ] Accept raw MessagePack request bodies.
+5.6 [x] Accept raw MessagePack request bodies.
 
-5.7 [ ] Decode MessagePack into a Python dictionary.
+5.7 [x] Decode MessagePack into a Python dictionary.
 
-5.8 [ ] Validate decoded payloads with Pydantic models before writing to SQLite.
+5.8 [x] Validate decoded payloads with Pydantic models before writing to SQLite.
 
 Required top-level payload fields:
 
@@ -519,9 +519,9 @@ detections
 telemetry
 ```
 
-5.9 [ ] Validate each detection includes the source `buffer_id`, metadata fields, three embedding segments, and binary embeddings.
+5.9 [x] Validate each detection includes the source `buffer_id`, metadata fields, three embedding segments, and binary embeddings.
 
-5.10 [ ] Validate telemetry includes desktop mock values for:
+5.10 [x] Validate telemetry includes desktop mock values for:
 
 ```text
 timestamp_utc
@@ -531,9 +531,9 @@ disk_free_gb
 battery_voltage
 ```
 
-5.11 [ ] Insert accepted detections and telemetry into the master WAL-enabled database in one transaction.
+5.11 [x] Insert accepted detections and telemetry into the master WAL-enabled database in one transaction.
 
-5.12 [ ] Return a response containing accepted source buffer IDs.
+5.12 [x] Return a response containing accepted source buffer IDs.
 
 Suggested response:
 
@@ -546,29 +546,29 @@ Suggested response:
 
 Deliverable:
 
-5.13 [ ] The API receives, authenticates, validates, and stores a hand-built MessagePack batch on localhost using YAML configuration.
+5.13 [x] The API receives, authenticates, validates, and stores a hand-built MessagePack batch on localhost using YAML configuration.
 
 Test:
 
-5.14 [ ] Set `HUB_CONFIG` to the local YAML file and run `uvicorn ingestion_api:app --host 127.0.0.1 --port 8000`.
+5.14 [x] Set `HUB_CONFIG` to the local YAML file and run `uvicorn ingestion_api:app --host 127.0.0.1 --port 8000`.
 
-5.15 [ ] Send one valid test payload and confirm `200 OK`.
+5.15 [x] Send one valid test payload and confirm `200 OK`.
 
-5.16 [ ] Send one payload with a bad API key and confirm `401` or `403`.
+5.16 [x] Send one payload with a bad API key and confirm `401` or `403`.
 
-5.17 [ ] Send one malformed payload and confirm `422` or a controlled validation error.
+5.17 [x] Send one malformed payload and confirm `422` or a controlled validation error.
 
-5.18 [ ] Query the master DB and confirm the valid payload inserted exactly one batch, one telemetry row, and the expected detection/vector rows.
+5.18 [x] Query the master DB and confirm the valid payload inserted exactly one batch, one telemetry row, and the expected detection/vector rows.
 
-## 6. [ ] Build The Mock Sender Daemon
+## 6. [x] Build The Mock Sender Daemon
 
-6.1 [ ] Implement `sender_daemon.py` in the edge mock workspace.
+6.1 [x] Implement `sender_daemon.py` in the edge mock workspace.
 
-6.2 [ ] Query the edge database for `sync_status = 'pending'`.
+6.2 [x] Query the edge database for `sync_status = 'pending'`.
 
-6.3 [ ] Load each pending buffer with its three embedding segments and three vector blobs.
+6.3 [x] Load each pending buffer with its three embedding segments and three vector blobs.
 
-6.4 [ ] Gather desktop mock telemetry.
+6.4 [x] Gather desktop mock telemetry.
 
 Suggested values:
 
@@ -579,35 +579,35 @@ battery_voltage = 12.4
 
 Real desktop-safe values may be gathered with `psutil` for CPU load and disk free space.
 
-6.5 [ ] Build the MessagePack payload using binary embedding data directly.
+6.5 [x] Build the MessagePack payload using binary embedding data directly.
 
-6.6 [ ] POST to the configured localhost API endpoint with the `X-API-Key` header.
+6.6 [x] POST to the configured localhost API endpoint with the `X-API-Key` header.
 
-6.7 [ ] On `200 OK`, update only the accepted source buffer IDs to `sync_status = 'synced'` and set `synced_at_utc`.
+6.7 [x] On `200 OK`, update only the accepted source buffer IDs to `sync_status = 'synced'` and set `synced_at_utc`.
 
-6.8 [ ] On network failure, API failure, or validation failure, leave rows as `pending` or mark them `failed` with a clear logged reason.
+6.8 [x] On network failure, API failure, or validation failure, leave rows as `pending` or mark them `failed` with a clear logged reason.
 
-6.9 [ ] Add a `--dry-run` mode that prints payload counts without sending.
+6.9 [x] Add a `--dry-run` mode that prints payload counts without sending.
 
-6.10 [ ] Add a `--limit` option to send a small batch during desktop testing.
+6.10 [x] Add a `--limit` option to send a small batch during desktop testing.
 
-6.11 [ ] Add a short `--config` option so API URL, API key, database path, and telemetry defaults come from YAML.
+6.11 [x] Add a short `--config` option so API URL, API key, database path, and telemetry defaults come from YAML.
 
 Deliverable:
 
-6.12 [ ] The sender can transmit pending edge rows to the local hub and update sync state only after successful ingestion.
+6.12 [x] The sender can transmit pending edge rows to the local hub and update sync state only after successful ingestion.
 
 Test:
 
-6.13 [ ] Start the FastAPI server in one terminal.
+6.13 [x] Start the FastAPI server in one terminal.
 
-6.14 [ ] Run `sender_daemon.py --config edge_node_mock/config/edge_config.local.yaml --limit 3` in another terminal.
+6.14 [x] Run `sender_daemon.py --config edge_node_mock/config/edge_config.local.yaml --limit 3` in another terminal.
 
-6.15 [ ] Confirm the edge DB now has the sent rows marked `synced`.
+6.15 [x] Confirm the edge DB now has the sent rows marked `synced`.
 
-6.16 [ ] Confirm the master DB contains matching rows for the same `device_id` and source `buffer_id` values.
+6.16 [x] Confirm the master DB contains matching rows for the same `device_id` and source `buffer_id` values.
 
-6.17 [ ] Stop the API server, create one new pending edge row, rerun the sender, and confirm the row is not incorrectly marked `synced`.
+6.17 [x] Stop the API server, create one new pending edge row, rerun the sender, and confirm the row is not incorrectly marked `synced`.
 
 ## 7. [ ] Build The Watchdog Alert Mock
 
