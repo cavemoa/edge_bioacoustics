@@ -377,7 +377,10 @@ def run_capture_loop(config_path: str | Path, *, iterations: int | None = None) 
 
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys=ON;")
-        for buffer in iter_audio_buffers(config):
+        for buffer in iter_audio_buffers(
+            config,
+            include_partial=bool(config.get("include_partial_final_buffer", False)),
+        ):
             if iterations is not None and processed >= iterations:
                 break
             logits, embeddings = run_perch_inference(model, buffer.perch_audio, buffer.perch_sample_rate)

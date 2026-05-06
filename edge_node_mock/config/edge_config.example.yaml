@@ -7,6 +7,7 @@ source_sample_rates:
   - 32000
   - 48000
 perch_sample_rate: 32000
+include_partial_final_buffer: false
 perch_model_path: null
 perch_tfhub_handle: https://www.kaggle.com/models/google/bird-vocalization-classifier/TensorFlow2/perch_v2_cpu/1
 perch_label_path: labels/perch_label.csv

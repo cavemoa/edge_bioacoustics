@@ -35,6 +35,9 @@ central_hub_mock/data/
 !notebooks/example_audio/*.flac
 !notebooks/example_audio/*.md
 
+# Notebook-generated teaching outputs
+notebooks/output/
+
 # SQLite databases and sidecar files
 *.sqlite
 *.sqlite3

@@ -13,13 +13,13 @@ storage, weather, and cellular data are all constrained.
 
 ## Project Status
 
-The project is currently in Phase 1: desktop mock development.
+The project has completed Phase 1 desktop mock development.
 
-Phase 1 builds and tests the full software path locally before moving to real
+Phase 1 built and tested the full software path locally before moving to real
 Raspberry Pi hardware, field microphones, Tailscale networking, 4G transport,
 I2C telemetry, and systemd services.
 
-Current Phase 1 progress:
+Completed Phase 1 work:
 
 - Desktop mock workspace layout, config templates, dependency files, and
   SQLite setup scripts are in place.
@@ -39,9 +39,11 @@ Current Phase 1 progress:
 - The end-to-end Phase 1 desktop rehearsal has been run from fresh mock
   databases, with the latest report at
   [docs/02_implementation/phase1_e2e_rehearsal_report.json](docs/02_implementation/phase1_e2e_rehearsal_report.json).
-- A teaching notebook walks through the capture loop step by step:
-  [notebooks/04A_bio_capture_loop_walkthrough.ipynb](notebooks/04A_bio_capture_loop_walkthrough.ipynb).
-- The notebook uses a bundled 120-second teaching clip:
+- Known limitations and Phase 2 hardware assumptions are documented at
+  [docs/02_implementation/phase1_limitations_and_phase2_assumptions.md](docs/02_implementation/phase1_limitations_and_phase2_assumptions.md).
+- A three-notebook teaching sequence walks through the edge capture loop, hub
+  ingestion scripts, and full desktop mock system end to end.
+- The notebooks use a bundled 120-second teaching clip:
   [notebooks/example_audio/example1_120s_petrel.wav](notebooks/example_audio/example1_120s_petrel.wav).
 
 The current implementation plan is here:
@@ -62,6 +64,47 @@ The central hub is a LattePanda Alpha on a secure home network. It receives
 hourly MessagePack batches from the edge node, validates them with a FastAPI
 ingestion service, writes them into a WAL-enabled SQLite database, and monitors
 device health with a passive watchdog.
+
+## Data Flow
+
+The edge capture path turns continuous audio into compact local evidence. The
+same flow is explored interactively in
+[notebooks/01_edge_capture_walkthrough.ipynb](notebooks/01_edge_capture_walkthrough.ipynb).
+
+```mermaid
+flowchart LR
+    A[Example or raw WAV<br>recording] --> B[15-second buffers]
+    B --> C[3 x 5-second<br>Perch windows]
+    C --> D[Perch CPU V2]
+    D --> E[Logits]
+    D --> F[1536-d embeddings]
+    E --> G[Noise, bio, and<br>NZ bird scoring]
+    G --> H[Retention decision]
+    H --> I[Retained FLACs]
+    H --> J[Edge SQLite DB]
+    F --> J
+    J --> K[MessagePack payload]
+```
+
+The hub ingestion path receives the edge payload, validates it, and stores the
+same detections in the hub database. This flow is explored in
+[notebooks/02_hub_ingestion_walkthrough.ipynb](notebooks/02_hub_ingestion_walkthrough.ipynb).
+
+```mermaid
+flowchart LR
+    A[payload.msgpack<br>from edge sender] --> B[FastAPI POST /ingest_batch]
+    B --> C{X-API-Key OK?}
+    C -- no --> D[403 rejected]
+    C -- yes --> E[MessagePack decode]
+    E --> F[Pydantic validation]
+    F --> G[SQLite transaction]
+    G --> H[ingestion_batches]
+    G --> I[hub_buffer_events]
+    G --> J[hub_embedding_segments]
+    G --> K[hub_perch_vectors<br>or blob fallback]
+    G --> L[health_metrics]
+    L --> M[watchdog_alert.py]
+```
 
 ## Runtime Components
 
@@ -87,8 +130,9 @@ The current AR4 fixture recordings are mono 32 kHz WAV files. The capture loop
 also keeps the planned 48 kHz to 32 kHz downsampling path for future sources.
 
 Large raw recordings remain outside Git. A small curated teaching fixture is
-tracked under `notebooks/example_audio/` so the walkthrough notebook can be run
-by someone who has just cloned the repository.
+tracked under `notebooks/example_audio/` so the walkthrough notebooks can be run
+by someone who has just cloned the repository. Generated notebook artifacts are
+written under `notebooks/output/`, which is intentionally ignored by Git.
 
 At the edge, the system stores every buffer event and every Perch embedding in
 SQLite. Full `.flac` audio is retained only when the buffer is a biological hit
@@ -98,6 +142,105 @@ trying to send raw audio over cellular.
 Configuration values such as paths, thresholds, API settings, and validation
 sampling cadence should live in YAML files rather than being hardcoded into
 scripts.
+
+## SQLite Schema
+
+Phase 1 uses one SQLite database at the edge and one at the hub. The diagram
+below shows the main tables and the logical relationship between rows. Vector
+storage uses `sqlite-vec` when available, with a blob-table fallback recorded in
+`schema_metadata`.
+
+```mermaid
+erDiagram
+    EDGE_BUFFER_EVENTS ||--|{ EDGE_EMBEDDING_SEGMENTS : has
+    EDGE_EMBEDDING_SEGMENTS ||--|| EDGE_VECTOR_STORAGE : stores
+    EDGE_BUFFER_EVENTS ||..o{ INGESTION_BATCHES : syncs
+    INGESTION_BATCHES ||--|{ HUB_BUFFER_EVENTS : contains
+    HUB_BUFFER_EVENTS ||--|{ HUB_EMBEDDING_SEGMENTS : has
+    HUB_EMBEDDING_SEGMENTS ||--|| HUB_VECTOR_STORAGE : stores
+    INGESTION_BATCHES ||..|| HEALTH_METRICS : records
+
+    EDGE_BUFFER_EVENTS {
+        int buffer_id PK
+        text device_id
+        text timestamp_utc
+        int audio_saved
+        text retention_reason
+        text filepath
+        text max_bio_label
+        real max_bio_logit
+        text noise_logits
+        text max_perch_label
+        real max_perch_logit
+        text nz_bird_logits
+        text sync_status
+        text created_at_utc
+        text synced_at_utc
+    }
+
+    EDGE_EMBEDDING_SEGMENTS {
+        int embedding_id PK
+        int buffer_id FK
+        int segment_index
+    }
+
+    EDGE_VECTOR_STORAGE {
+        int embedding_id PK
+        blob embedding
+    }
+
+    INGESTION_BATCHES {
+        int batch_id PK
+        text device_id
+        text sent_at_utc
+        text received_at_utc
+        int payload_bytes
+        int detection_count
+        text status
+    }
+
+    HUB_BUFFER_EVENTS {
+        int hub_buffer_id PK
+        text device_id
+        int source_buffer_id
+        int batch_id FK
+        text timestamp_utc
+        int audio_saved
+        text retention_reason
+        text filepath
+        text max_bio_label
+        real max_bio_logit
+        text noise_logits
+        text max_perch_label
+        real max_perch_logit
+        text nz_bird_logits
+        text received_at_utc
+    }
+
+    HUB_EMBEDDING_SEGMENTS {
+        int hub_embedding_id PK
+        int hub_buffer_id FK
+        int source_embedding_id
+        int segment_index
+    }
+
+    HUB_VECTOR_STORAGE {
+        int hub_embedding_id PK
+        blob embedding
+    }
+
+    HEALTH_METRICS {
+        int health_id PK
+        text device_id
+        text timestamp_utc
+        text received_at_utc
+        real cpu_temp_c
+        real cpu_load_pct
+        real disk_free_gb
+        real battery_voltage
+        real solar_amps
+    }
+```
 
 ## Quick Start
 
@@ -162,23 +305,34 @@ Run the unit tests:
 .venv/bin/python -m unittest tests.test_bio_capture_loop tests.test_ingestion_api tests.test_perch_inspection tests.test_phase1_setup tests.test_sender_daemon tests.test_watchdog_alert
 ```
 
-## Teaching Notebook
+## Teaching Notebooks
 
-The notebook
-[notebooks/04A_bio_capture_loop_walkthrough.ipynb](notebooks/04A_bio_capture_loop_walkthrough.ipynb)
-is a guided walkthrough of `bio_capture_loop.py`. It uses the bundled
-120-second clip
+The notebooks are designed to be run in order. They use the bundled 120-second
+clip
 [notebooks/example_audio/example1_120s_petrel.wav](notebooks/example_audio/example1_120s_petrel.wav),
-which contains wind/sea noise and two grey-faced petrel calls. It shows how a
-new student can step through the same functions used by the script:
+which contains wind/sea noise and two grey-faced petrel calls. Each notebook
+creates inspectable teaching artifacts under `notebooks/output/`.
 
-1. Load YAML configuration.
-2. Stream the example recording into eight 15-second buffers.
-3. Split each buffer into three 5-second Perch windows.
-4. Run Perch inference, time each buffer, and inspect logits and embeddings.
-5. Apply the configured noise and biological label gates.
-6. Save example retained `.flac` files.
-7. Optionally write rows to a scratch SQLite database under ignored local data.
+1. [notebooks/01_edge_capture_walkthrough.ipynb](notebooks/01_edge_capture_walkthrough.ipynb)
+   walks through `bio_capture_loop.py` step by step:
+
+   - Load YAML configuration.
+   - Stream the example recording into eight 15-second buffers.
+   - Split each buffer into three 5-second Perch windows.
+   - Run Perch inference, time each buffer, and inspect logits and embeddings.
+   - Apply the configured noise and biological label gates.
+   - Save retained `.flac` files.
+   - Write edge SQLite rows and a MessagePack payload for the next notebook.
+
+2. [notebooks/02_hub_ingestion_walkthrough.ipynb](notebooks/02_hub_ingestion_walkthrough.ipynb)
+   explains the hub scripts by sending the first notebook's MessagePack payload
+   through the FastAPI ingestion app, validating auth and malformed-payload
+   behavior, inspecting the hub database, and running the watchdog check.
+
+3. [notebooks/03_end_to_end_system_walkthrough.ipynb](notebooks/03_end_to_end_system_walkthrough.ipynb)
+   runs the whole desktop mock: edge capture loop, temporary localhost hub API,
+   sender daemon dry run, real send, hub database inspection, and watchdog
+   summary.
 
 ## Repository Map
 
@@ -209,9 +363,12 @@ mock_common/
   sqlite_vectors.py
 
 notebooks/
-  04A_bio_capture_loop_walkthrough.ipynb
+  01_edge_capture_walkthrough.ipynb
+  02_hub_ingestion_walkthrough.ipynb
+  03_end_to_end_system_walkthrough.ipynb
   example_audio/
     example1_120s_petrel.wav
+  output/  # generated by the notebooks and ignored by Git
 
 scripts/
   label_extract.py
@@ -228,7 +385,10 @@ tests/
 - [Phase 1 schema decisions](docs/02_implementation/schema_decisions.md)
 - [Perch model inspection report](docs/02_implementation/perch_model_inspection_report.json)
 - [Phase 1 end-to-end rehearsal report](docs/02_implementation/phase1_e2e_rehearsal_report.json)
-- [Capture-loop teaching notebook](notebooks/04A_bio_capture_loop_walkthrough.ipynb)
+- [Phase 1 limitations and Phase 2 assumptions](docs/02_implementation/phase1_limitations_and_phase2_assumptions.md)
+- [Edge capture teaching notebook](notebooks/01_edge_capture_walkthrough.ipynb)
+- [Hub ingestion teaching notebook](notebooks/02_hub_ingestion_walkthrough.ipynb)
+- [End-to-end teaching notebook](notebooks/03_end_to_end_system_walkthrough.ipynb)
 - [SQLite schema ideas](docs/00_ideas/rpi_sqlite_schema.md)
 - [Sound gate notes](docs/00_ideas/sound_gate.md)
 
@@ -243,8 +403,8 @@ numbers to local bird common names and scientific names. It is used for the
 
 ## Development Notes
 
-Phase 1 should prove the system locally with mock data before hardware
-integration. The priority is a reliable end-to-end desktop rehearsal:
+Phase 1 has proved the system locally with mock data before hardware
+integration. The desktop rehearsal path is:
 
 1. Read mock audio from `/data`.
 2. Run Perch inference and gating.
