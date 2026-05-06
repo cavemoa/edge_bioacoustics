@@ -114,3 +114,8 @@ integration. The priority is a reliable end-to-end desktop rehearsal:
 
 Large audio files, local databases, model exports, secrets, virtual
 environments, and machine-specific YAML config files should stay out of Git.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0. See
+[LICENSE](LICENSE) for the full license text.
