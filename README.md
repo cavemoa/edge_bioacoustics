@@ -19,6 +19,22 @@ Phase 1 builds and tests the full software path locally before moving to real
 Raspberry Pi hardware, field microphones, Tailscale networking, 4G transport,
 I2C telemetry, and systemd services.
 
+Current Phase 1 progress:
+
+- Desktop mock workspace layout, config templates, dependency files, and
+  SQLite setup scripts are in place.
+- The configured AR4 mock audio path is
+  `/data/petrel_acoustics/raw_audio/doc_ar4/rapanui_AR4_june_2023`.
+- Perch CPU V2 inference has been confirmed locally: three 5-second frames from
+  one 15-second buffer produce logits shaped `[3, 14795]` and embeddings shaped
+  `[3, 1536]`.
+- `bio_capture_loop.py` is implemented for bounded desktop runs against raw
+  mock audio.
+- A teaching notebook walks through the capture loop step by step:
+  [notebooks/04A_bio_capture_loop_walkthrough.ipynb](notebooks/04A_bio_capture_loop_walkthrough.ipynb).
+- The notebook uses a bundled 120-second teaching clip:
+  [notebooks/example_audio/example1_120s_petrel.wav](notebooks/example_audio/example1_120s_petrel.wav).
+
 The current implementation plan is here:
 
 [docs/02_implementation/Phase_1_implementation_plan.md](docs/02_implementation/Phase_1_implementation_plan.md)
@@ -38,20 +54,32 @@ hourly MessagePack batches from the edge node, validates them with a FastAPI
 ingestion service, writes them into a WAL-enabled SQLite database, and monitors
 device health with a passive watchdog.
 
-## Planned Runtime Components
+## Runtime Components
 
 The architecture is built around four scripts:
 
-1. `bio_capture_loop.py`: edge audio buffering, Perch inference, gating, audio retention, and edge database writes.
-2. `sender_daemon.py`: edge database sync, MessagePack serialization, mock or real telemetry, and HTTP transport.
-3. `ingestion_api.py`: hub-side FastAPI receiver, API key authentication, payload validation, and master database insertion.
-4. `watchdog_alert.py`: hub-side stale telemetry detection and alerting.
+1. `edge_node_mock/src/bio_capture_loop.py`: implemented edge audio buffering, Perch inference, gating, audio retention, and edge database writes.
+2. `sender_daemon.py`: planned edge database sync, MessagePack serialization, mock or real telemetry, and HTTP transport.
+3. `ingestion_api.py`: planned hub-side FastAPI receiver, API key authentication, payload validation, and master database insertion.
+4. `watchdog_alert.py`: planned hub-side stale telemetry detection and alerting.
+
+Supporting scripts currently include:
+
+- `edge_node_mock/src/audio_smoke_test.py`: confirms configured mock audio can be read.
+- `edge_node_mock/src/init_edge_db.py`: initializes the edge SQLite database.
+- `edge_node_mock/src/inspect_perch_model.py`: verifies Perch model input/output shapes and label mappings.
+- `central_hub_mock/src/init_master_db.py`: initializes the hub SQLite database.
 
 ## Data Strategy
 
 Raw recordings are treated as read-only evidence. During desktop development,
-mock 48 kHz `.wav` recordings are expected to be mounted at `/data`, with the
-final path still configurable.
+mock `.wav` recordings are read from a YAML-configured path under `/data`.
+The current AR4 fixture recordings are mono 32 kHz WAV files. The capture loop
+also keeps the planned 48 kHz to 32 kHz downsampling path for future sources.
+
+Large raw recordings remain outside Git. A small curated teaching fixture is
+tracked under `notebooks/example_audio/` so the walkthrough notebook can be run
+by someone who has just cloned the repository.
 
 At the edge, the system stores every buffer event and every Perch embedding in
 SQLite. Full `.flac` audio is retained only when the buffer is a biological hit
@@ -62,9 +90,67 @@ Configuration values such as paths, thresholds, API settings, and validation
 sampling cadence should live in YAML files rather than being hardcoded into
 scripts.
 
+## Quick Start
+
+Create or activate the root virtual environment, then install development
+dependencies:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+```
+
+Initialize the local mock databases:
+
+```bash
+.venv/bin/python edge_node_mock/src/init_edge_db.py --config edge_node_mock/config/edge_config.local.yaml --reset
+.venv/bin/python central_hub_mock/src/init_master_db.py --config central_hub_mock/config/hub_config.local.yaml --reset
+```
+
+Run the audio and model checks:
+
+```bash
+.venv/bin/python edge_node_mock/src/audio_smoke_test.py --config edge_node_mock/config/edge_config.local.yaml
+.venv/bin/python edge_node_mock/src/inspect_perch_model.py --config edge_node_mock/config/edge_config.local.yaml
+```
+
+Run a bounded capture-loop test:
+
+```bash
+.venv/bin/python edge_node_mock/src/bio_capture_loop.py --config edge_node_mock/config/edge_config.local.yaml --iterations 3
+```
+
+Run the unit tests:
+
+```bash
+.venv/bin/python -m unittest tests.test_bio_capture_loop tests.test_perch_inspection tests.test_phase1_setup
+```
+
+## Teaching Notebook
+
+The notebook
+[notebooks/04A_bio_capture_loop_walkthrough.ipynb](notebooks/04A_bio_capture_loop_walkthrough.ipynb)
+is a guided walkthrough of `bio_capture_loop.py`. It uses the bundled
+120-second clip
+[notebooks/example_audio/example1_120s_petrel.wav](notebooks/example_audio/example1_120s_petrel.wav),
+which contains wind/sea noise and two grey-faced petrel calls. It shows how a
+new student can step through the same functions used by the script:
+
+1. Load YAML configuration.
+2. Stream the example recording into eight 15-second buffers.
+3. Split each buffer into three 5-second Perch windows.
+4. Run Perch inference, time each buffer, and inspect logits and embeddings.
+5. Apply the configured noise and biological label gates.
+6. Save example retained `.flac` files.
+7. Optionally write rows to a scratch SQLite database under ignored local data.
+
 ## Repository Map
 
 ```text
+central_hub_mock/
+  config/
+  src/
+
 diagrams/
   bioacoustic_IOT_concept.png
 
@@ -73,14 +159,29 @@ docs/
   01_concept/
   02_implementation/
 
+edge_node_mock/
+  config/
+  src/
+
 labels/
   perch_label.csv
   north_island_nz_bird_list.csv
   north_island_nz_perch_lablel.csv
 
+mock_common/
+  config.py
+  sqlite_vectors.py
+
+notebooks/
+  04A_bio_capture_loop_walkthrough.ipynb
+  example_audio/
+    example1_120s_petrel.wav
+
 scripts/
   label_extract.py
   match_north_island_perch_labels.py
+
+tests/
 ```
 
 ## Key Documents
@@ -88,6 +189,9 @@ scripts/
 - [Architecture concept](docs/01_concept/architecture_concept.md)
 - [Phase 1 desktop development concept](docs/01_concept/Phase_1_Desktop_Development.md)
 - [Phase 1 implementation plan](docs/02_implementation/Phase_1_implementation_plan.md)
+- [Phase 1 schema decisions](docs/02_implementation/schema_decisions.md)
+- [Perch model inspection report](docs/02_implementation/perch_model_inspection_report.json)
+- [Capture-loop teaching notebook](notebooks/04A_bio_capture_loop_walkthrough.ipynb)
 - [SQLite schema ideas](docs/00_ideas/rpi_sqlite_schema.md)
 - [Sound gate notes](docs/00_ideas/sound_gate.md)
 
@@ -113,7 +217,9 @@ integration. The priority is a reliable end-to-end desktop rehearsal:
 6. Confirm the watchdog can detect healthy, stale, and missing telemetry.
 
 Large audio files, local databases, model exports, secrets, virtual
-environments, and machine-specific YAML config files should stay out of Git.
+environments, notebook scratch output, and machine-specific YAML config files
+should stay out of Git. The only tracked audio should be small curated teaching
+fixtures under `notebooks/example_audio/`.
 
 ## License
 

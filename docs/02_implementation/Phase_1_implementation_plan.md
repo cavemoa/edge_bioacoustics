@@ -14,22 +14,22 @@ Phase 1 builds four scripts:
 
 ## Working Assumptions
 
-1. [ ] The desktop phase uses two local workspaces or clearly separated folders:
+1. [x] The desktop phase uses two local workspaces or clearly separated folders:
    `edge_node_mock/` and `central_hub_mock/`.
-2. [ ] The local edge database is treated as the Raspberry Pi database.
-3. [ ] The local master database is treated as the LattePanda hub database.
-4. [ ] Audio files are never modified in place. Raw mock recordings mounted at `/data` are treated as read-only evidence.
+2. [x] The local edge database is treated as the Raspberry Pi database.
+3. [x] The local master database is treated as the LattePanda hub database.
+4. [x] Audio files are never modified in place. Raw mock recordings mounted at `/data` are treated as read-only evidence.
 5. [ ] The edge database stores every 15-second buffer event and all Perch embeddings.
 6. [ ] Full `.flac` audio is retained only for biological hits and validation samples.
 7. [x] Perch 2.0 embeddings are confirmed as `1536` dimensions for this project.
 8. [x] Label CSVs live in the repository `labels/` directory.
 9. [x] `labels/north_island_nz_perch_lablel.csv` is the local NZ bird label subset used for `nz_bird_logits` during Phase 1.
-10. [ ] Mock raw recording files will be mounted at `/data`; the final subdirectory or filename pattern still needs to be confirmed.
-11. [ ] User-configurable parameters should live in YAML config files wherever practical. Command-line arguments should be kept short and mostly limited to selecting a config file, bounded test runs, or dry-run behavior.
+10. [x] Mock raw recording files are confirmed at `/data/petrel_acoustics/raw_audio/doc_ar4/rapanui_AR4_june_2023`, with six nightly subfolders and `**/*.wav` matching.
+11. [x] User-configurable parameters should live in YAML config files wherever practical. Command-line arguments should be kept short and mostly limited to selecting a config file, bounded test runs, or dry-run behavior.
 
-## 1. [ ] Prepare The Desktop Mock Environment
+## 1. [x] Prepare The Desktop Mock Environment
 
-1.1 [ ] Create or confirm the local folder layout.
+1.1 [x] Create or confirm the local folder layout.
 
 Recommended structure:
 
@@ -50,9 +50,9 @@ central_hub_mock/
   tests/
 ```
 
-1.2 [ ] Create a separate Python virtual environment for each mock workspace.
+1.2 [x] Use the repo root `.venv` for Phase 1 desktop development unless separate edge/hub environments become necessary later.
 
-1.3 [ ] Add local-only folders to `.gitignore` if they do not already exist.
+1.3 [x] Add local-only folders to `.gitignore` if they do not already exist.
 
 Minimum ignored paths:
 
@@ -66,7 +66,7 @@ central_hub_mock/data/
 *.wav
 ```
 
-1.4 [ ] Install the desktop dependencies in the relevant environment.
+1.4 [x] Add repo dependency manifests for the desktop dependencies.
 
 Initial dependency set:
 
@@ -87,7 +87,7 @@ psutil
 pytest
 ```
 
-1.5 [ ] Add YAML config templates for each side.
+1.5 [x] Add YAML config templates for each side.
 
 Recommended files:
 
@@ -133,30 +133,30 @@ watchdog_stale_minutes: 75
 embedding_dim: 1536
 ```
 
-1.6 [ ] Gather 48 kHz `.wav` raw recording files for the mock data stream.
+1.6 [x] Gather `.wav` raw recording files for the mock data stream.
 
-1.7 [ ] Mount the raw recordings so the edge mock can read them from `/data`.
+1.7 [x] Mount the raw recordings so the edge mock can read them from `/data`.
 
-1.8 [ ] Keep the final `/data` path configurable in YAML until the final mount layout is known.
+1.8 [x] Keep the final `/data` path configurable in YAML until the final mount layout is known.
 
-1.9 [ ] Add a small smoke script or test that confirms at least one configured `.wav` can be read, has one or two channels, is 48 kHz, and can be converted to mono float32.
+1.9 [x] Add a small smoke script or test that confirms at least one configured `.wav` can be read, has one or two channels, has an accepted source sample rate, and can be converted to mono float32.
 
 Deliverable:
 
-1.10 [ ] Both mock workspaces exist, dependencies install, YAML config templates exist, and at least one configured mock audio file can be loaded.
+1.10 [x] Both mock workspaces exist, dependency manifests exist, YAML config templates exist, and at least one configured mock audio file can be loaded.
 
 Test:
 
-1.11 [ ] Run the environment smoke test and confirm it prints the configured audio search path, first selected file, sample rate, duration, channel count, dtype, and peak amplitude.
+1.11 [x] Run the environment smoke test and confirm it prints the configured audio search path, first selected file, sample rate, duration, channel count, dtype, and peak amplitude.
 
-## 2. [ ] Define And Initialize The SQLite Schemas
+## 2. [x] Define And Initialize The SQLite Schemas
 
-2.1 [ ] Create a shared schema decision note in the implementation docs or in code comments.
+2.1 [x] Create a shared schema decision note in the implementation docs or in code comments.
 
 The Phase 1 schema should resolve the duplicate `audio_saved`, `retention_reason`,
 and `filepath` fields currently shown in `rpi_sqlite_schema.md`.
 
-2.2 [ ] Implement an edge DB setup script.
+2.2 [x] Implement an edge DB setup script.
 
 Suggested file:
 
@@ -164,7 +164,7 @@ Suggested file:
 edge_node_mock/src/init_edge_db.py
 ```
 
-2.3 [ ] Implement the edge `buffer_events` table.
+2.3 [x] Implement the edge `buffer_events` table.
 
 Required fields:
 
@@ -186,7 +186,7 @@ created_at_utc TEXT NOT NULL
 synced_at_utc TEXT
 ```
 
-2.4 [ ] Add a `CHECK` constraint or code-level validation for `retention_reason`.
+2.4 [x] Add a `CHECK` constraint or code-level validation for `retention_reason`.
 
 Allowed values:
 
@@ -196,7 +196,7 @@ validation_sample
 dropped
 ```
 
-2.5 [ ] Add a `CHECK` constraint or code-level validation for `sync_status`.
+2.5 [x] Add a `CHECK` constraint or code-level validation for `sync_status`.
 
 Allowed values:
 
@@ -207,7 +207,7 @@ synced
 failed
 ```
 
-2.6 [ ] Implement the edge `embedding_segments` table.
+2.6 [x] Implement the edge `embedding_segments` table.
 
 Required fields:
 
@@ -218,7 +218,7 @@ segment_index INTEGER NOT NULL
 FOREIGN KEY(buffer_id) REFERENCES buffer_events(buffer_id) ON DELETE CASCADE
 ```
 
-2.7 [ ] Implement the edge `perch_vectors` table.
+2.7 [x] Implement the edge `perch_vectors` table.
 
 Preferred form:
 
@@ -229,7 +229,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS perch_vectors USING vec0(
 );
 ```
 
-2.8 [ ] Add a fallback decision for development machines without `sqlite-vec`.
+2.8 [x] Add a fallback decision for development machines without `sqlite-vec`.
 
 Acceptable Phase 1 fallback:
 
@@ -237,7 +237,7 @@ Acceptable Phase 1 fallback:
 perch_vector_blobs(embedding_id INTEGER PRIMARY KEY, embedding BLOB NOT NULL)
 ```
 
-2.9 [ ] Implement a master DB setup script.
+2.9 [x] Implement a master DB setup script.
 
 Suggested file:
 
@@ -245,7 +245,7 @@ Suggested file:
 central_hub_mock/src/init_master_db.py
 ```
 
-2.10 [ ] Enable WAL mode on the master database.
+2.10 [x] Enable WAL mode on the master database.
 
 Required pragma:
 
@@ -253,7 +253,7 @@ Required pragma:
 PRAGMA journal_mode=WAL;
 ```
 
-2.11 [ ] Create master tables for received buffer events, embedding segments, vector storage, ingestion batches, and health metrics.
+2.11 [x] Create master tables for received buffer events, embedding segments, vector storage, ingestion batches, and health metrics.
 
 Required `ingestion_batches` fields:
 
@@ -321,19 +321,19 @@ battery_voltage REAL
 solar_amps REAL
 ```
 
-2.12 [ ] Ensure the master schema preserves the original edge `buffer_id` and `device_id` so rows can be traced back to the source node.
+2.12 [x] Ensure the master schema preserves the original edge `buffer_id` and `device_id` so rows can be traced back to the source node.
 
 Deliverable:
 
-2.13 [ ] Running the setup scripts creates both SQLite databases from scratch.
+2.13 [x] Running the setup scripts creates both SQLite databases from scratch.
 
 Test:
 
-2.14 [ ] Run a schema test that opens both databases, lists all expected tables, confirms WAL mode on the master DB, confirms vector tables use `1536` dimensions, and inserts then deletes one dummy buffer event with three embedding segments.
+2.14 [x] Run a schema test that opens both databases, lists all expected tables, confirms WAL mode on the master DB, confirms vector tables use `1536` dimensions, and inserts then deletes one dummy buffer event with three embedding segments.
 
-## 3. [ ] Confirm Perch Model Inputs, Outputs, And Labels
+## 3. [x] Confirm Perch Model Inputs, Outputs, And Labels
 
-3.1 [ ] Create a model inspection script.
+3.1 [x] Create a model inspection script.
 
 Suggested file:
 
@@ -341,13 +341,13 @@ Suggested file:
 edge_node_mock/src/inspect_perch_model.py
 ```
 
-3.2 [ ] Load the configured Perch 2.0 TensorFlow SavedModel.
+3.2 [x] Load the configured Perch 2.0 TensorFlow model.
 
-3.3 [ ] Load the Perch labels CSV.
+3.3 [x] Load the Perch labels CSV.
 
-3.4 [ ] Run one known 15-second mono float32 buffer through the model.
+3.4 [x] Run one known 15-second mono float32 buffer through the model.
 
-3.5 [ ] Confirm the model splits the 15-second buffer into three 5-second frames.
+3.5 [x] Confirm the model splits the 15-second buffer into three 5-second frames.
 
 Expected output shape:
 
@@ -358,37 +358,37 @@ embeddings: [3, embedding_dim]
 
 3.6 [x] Set `embedding_dim: 1536` in the edge and hub YAML config templates.
 
-3.7 [ ] Confirm the Perch labels can be indexed by numeric label number.
+3.7 [x] Confirm the Perch labels can be indexed by numeric label number.
 
 3.8 [x] Confirm `labels/north_island_nz_perch_lablel.csv` is the NZ bird label subset for `nz_bird_logits`.
 
-3.9 [ ] Confirm `labels/north_island_nz_perch_lablel.csv` can be loaded and mapped from `perch_label_number` to `common_name` and `scientific_name`.
+3.9 [x] Confirm `labels/north_island_nz_perch_lablel.csv` can be loaded and mapped from `perch_label_number` to `common_name` and `scientific_name`.
 
 Deliverable:
 
-3.10 [ ] A model inspection output file or console report documents `label_count`, `embedding_dim = 1536`, and the three-frame behavior.
+3.10 [x] A model inspection output file or console report documents `label_count`, `embedding_dim = 1536`, and the three-frame behavior.
 
 Test:
 
-3.11 [ ] Run the inspection script and confirm the installed model output matches the YAML value `embedding_dim: 1536` before continuing.
+3.11 [x] Run the inspection script and confirm the installed model output matches the YAML value `embedding_dim: 1536` before continuing.
 
-## 4. [ ] Build The Mock Capture And Gating Pipeline
+## 4. [x] Build The Mock Capture And Gating Pipeline
 
-4.1 [ ] Implement `bio_capture_loop.py` in the edge mock workspace.
+4.1 [x] Implement `bio_capture_loop.py` in the edge mock workspace.
 
-4.2 [ ] Replace real microphone capture with a mock generator that reads configured 48 kHz `.wav` files from `/data`.
+4.2 [x] Replace real microphone capture with a mock generator that reads configured `.wav` files from `/data`.
 
-4.3 [ ] Keep the mock audio input path and filename pattern in YAML rather than hardcoding them.
+4.3 [x] Keep the mock audio input path and filename pattern in YAML rather than hardcoding them.
 
-4.4 [ ] Convert source audio to mono float32.
+4.4 [x] Convert source audio to mono float32.
 
-4.5 [ ] Downsample 48 kHz source audio to 32 kHz using `scipy.signal.resample_poly` with `up=2` and `down=3`.
+4.5 [x] Downsample 48 kHz source audio to 32 kHz using `scipy.signal.resample_poly` with `up=2` and `down=3`.
 
-4.6 [ ] Slice or stream the raw recordings into 15-second buffers.
+4.6 [x] Slice or stream the raw recordings into 15-second buffers.
 
-4.7 [ ] Pass each 15-second buffer into Perch inference.
+4.7 [x] Pass each 15-second buffer into Perch inference.
 
-4.8 [ ] Evaluate the three 5-second frames independently.
+4.8 [x] Evaluate the three 5-second frames independently.
 
 Per-frame values to compute:
 
@@ -399,7 +399,7 @@ max Perch label and score
 top 3 NZ bird labels and scores
 ```
 
-4.9 [ ] Implement the first-pass gate.
+4.9 [x] Implement the first-pass gate.
 
 Suggested Phase 1 logic:
 
@@ -409,33 +409,33 @@ dropped if noise dominates and no biological frame passes
 validation_sample every N dropped buffers
 ```
 
-4.10 [ ] Keep threshold values and validation-sample cadence in YAML.
+4.10 [x] Keep threshold values and validation-sample cadence in YAML.
 
-4.11 [ ] Save `.flac` audio only when the buffer is a `bio_hit` or `validation_sample`.
+4.11 [x] Save `.flac` audio only when the buffer is a `bio_hit` or `validation_sample`.
 
-4.12 [ ] Insert one `buffer_events` row for every 15-second buffer.
+4.12 [x] Insert one `buffer_events` row for every 15-second buffer.
 
-4.13 [ ] Insert exactly three `embedding_segments` rows for every buffer.
+4.13 [x] Insert exactly three `embedding_segments` rows for every buffer.
 
-4.14 [ ] Insert exactly three vector rows for every buffer.
+4.14 [x] Insert exactly three vector rows for every buffer.
 
-4.15 [ ] Store all JSON-like score fields as compact JSON strings.
+4.15 [x] Store all JSON-like score fields as compact JSON strings.
 
-4.16 [ ] Insert new buffer rows with `sync_status = 'pending'`.
+4.16 [x] Insert new buffer rows with `sync_status = 'pending'`.
 
-4.17 [ ] Add a short command-line override for bounded desktop testing, such as `--iterations 3`.
+4.17 [x] Add a short command-line override for bounded desktop testing, such as `--iterations 3`.
 
-4.18 [ ] Add a short `--config` option so the normal run command points at a YAML file instead of carrying long parameter lists.
+4.18 [x] Add a short `--config` option so the normal run command points at a YAML file instead of carrying long parameter lists.
 
 Deliverable:
 
-4.19 [ ] The mock capture loop can process a fixed number of 15-second buffers from the configured `/data` source and populate the edge database without network access.
+4.19 [x] The mock capture loop can process a fixed number of 15-second buffers from the configured `/data` source and populate the edge database without network access.
 
 Test:
 
-4.20 [ ] Run `bio_capture_loop.py --config edge_node_mock/config/edge_config.local.yaml --iterations 3`.
+4.20 [x] Run `bio_capture_loop.py --config edge_node_mock/config/edge_config.local.yaml --iterations 3`.
 
-4.21 [ ] Query the edge DB and confirm:
+4.21 [x] Query the edge DB and confirm:
 
 ```text
 3 buffer_events rows
@@ -444,6 +444,42 @@ Test:
 all buffer_events.sync_status = 'pending'
 retained audio files exist only for bio_hit or validation_sample rows
 ```
+
+## 4A. [x] Build A Teaching Notebook For The Capture Pipeline
+
+4A.1 [x] Create a notebook in the root `notebooks/` directory.
+
+Suggested file:
+
+```text
+notebooks/04A_bio_capture_loop_walkthrough.ipynb
+```
+
+4A.2 [x] Explain the purpose of `bio_capture_loop.py` for a new student.
+
+4A.3 [x] Show how YAML config values drive paths, thresholds, and label groups.
+
+4A.4 [x] Demonstrate streaming the bundled 120-second example `.wav` recording into eight 15-second buffers.
+
+4A.5 [x] Show how a 15-second buffer becomes three 5-second Perch input windows.
+
+4A.6 [x] Run Perch inference and display logits, embedding shapes, and per-buffer inference timing.
+
+4A.7 [x] Demonstrate frame scoring for noise labels, biological labels, max Perch label, and top NZ bird labels.
+
+4A.8 [x] Walk through the first-pass retention gate and its JSON fields.
+
+4A.9 [x] Include example code for saving retained `.flac` audio.
+
+4A.10 [x] Include an optional scratch database insert so students can inspect `buffer_events`, `embedding_segments`, and vector row counts without altering the main edge DB.
+
+Deliverable:
+
+4A.11 [x] A commented notebook teaches the capture-loop flow step by step using the same functions as the production script.
+
+Test:
+
+4A.12 [x] Validate the notebook JSON and confirm it contains runnable code cells for the capture-loop walkthrough.
 
 ## 5. [ ] Build The Local Hub Ingestion API
 

@@ -1,0 +1,6 @@
+master_db_path: central_hub_mock/data/db/master_mock.sqlite
+api_key: replace-with-local-dev-key
+allowed_device_ids:
+  - pi_01
+watchdog_stale_minutes: 75
+embedding_dim: 1536

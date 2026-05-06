@@ -1,0 +1,15 @@
+fastapi
+msgpack
+numpy
+pandas
+psutil
+pydantic
+pyyaml
+requests
+scipy
+setuptools<81
+soundfile
+sqlite-vec
+tensorflow
+tensorflow-hub
+uvicorn

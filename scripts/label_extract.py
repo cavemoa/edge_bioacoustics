@@ -2,6 +2,11 @@ from pathlib import Path
 
 import pandas as pd
 
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PERCH_LABEL_PATH = REPO_ROOT / "labels" / "perch_label.csv"
+
+
 def get_single_word_labels(csv_file_path, column_name='label'):
     """
     Extracts single-word labels from a specified CSV file.
@@ -15,8 +20,10 @@ def get_single_word_labels(csv_file_path, column_name='label'):
         list: A list of single-word labels.
     """
     try:
-        # Load the CSV file
-        df = pd.read_csv(csv_file_path)
+        csv_file_path = Path(csv_file_path).expanduser().resolve()
+
+        # perch_label.csv is a one-column file without a normal CSV header.
+        df = pd.read_csv(csv_file_path, header=None, names=[column_name])
         
         # Fallback to the first column if the specified column name isn't found
         if column_name not in df.columns:
@@ -25,6 +32,8 @@ def get_single_word_labels(csv_file_path, column_name='label'):
             
         # Drop any empty/NaN rows in the label column and convert to string
         labels = df[column_name].dropna().astype(str).tolist()
+        if labels and labels[0] == "inat2024_fsd50k":
+            labels = labels[1:]
         
         # Filter for labels that only contain one word (no spaces)
         single_word_labels = [label for label in labels if len(label.split()) == 1]
@@ -40,7 +49,16 @@ def get_single_word_labels(csv_file_path, column_name='label'):
 
 # --- Example Usage ---
 if __name__ == "__main__":
-    file_path = Path(__file__).with_name('perch_label.csv')
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Extract single-word Perch labels.")
+    parser.add_argument(
+        "--csv",
+        default=DEFAULT_PERCH_LABEL_PATH,
+        help="Path to perch_label.csv. Defaults to the repo labels/perch_label.csv file.",
+    )
+    args = parser.parse_args()
+    file_path = Path(args.csv)
     
     # Run the extraction
     extracted_labels = get_single_word_labels(file_path, column_name='label')

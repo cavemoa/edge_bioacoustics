@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.ipynb_checkpoints/
 .coverage
 htmlcov/
 .venv/
@@ -28,14 +29,25 @@ central_hub_mock/data/
 *.ogg
 *.m4a
 
+# Small teaching fixtures that should travel with the repo
+!notebooks/example_audio/
+!notebooks/example_audio/*.wav
+!notebooks/example_audio/*.flac
+!notebooks/example_audio/*.md
+
 # SQLite databases and sidecar files
 *.sqlite
 *.sqlite3
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite-journal
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
 
 # Model exports and large ML artifacts
 models/

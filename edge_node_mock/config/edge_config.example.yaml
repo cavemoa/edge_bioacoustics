@@ -1,0 +1,42 @@
+device_id: pi_01
+edge_db_path: edge_node_mock/data/db/edge_mock.sqlite
+retained_audio_dir: edge_node_mock/data/retained_audio
+raw_audio_mount: /data/petrel_acoustics/raw_audio/doc_ar4/rapanui_AR4_june_2023
+raw_audio_glob: "**/*.wav"
+source_sample_rates:
+  - 32000
+  - 48000
+perch_sample_rate: 32000
+perch_model_path: null
+perch_tfhub_handle: https://www.kaggle.com/models/google/bird-vocalization-classifier/TensorFlow2/perch_v2_cpu/1
+perch_label_path: labels/perch_label.csv
+nz_bird_label_path: labels/north_island_nz_perch_lablel.csv
+embedding_dim: 1536
+hub_ingest_url: http://127.0.0.1:8000/ingest_batch
+api_key: replace-with-local-dev-key
+bio_threshold: 2.0
+noise_threshold: 5.0
+noise_labels:
+  - Water_tap_and_faucet
+  - Waves_and_surf
+  - Whispering
+  - Whoosh_and_swoosh_and_swish
+  - Wind
+  - Thunder
+  - Thunderstorm
+  - Rain
+  - Raindrop
+  - Ocean
+  - Drip
+  - Crackle
+biological_labels:
+  - Animal
+  - Chirp_and_tweet
+  - Crow
+  - Fowl
+  - Frog
+  - Gull_and_seagull
+  - Insect
+  - Livestock_and_farm_animals_and_working_animals
+  - Wild_animals
+validation_sample_interval: 100

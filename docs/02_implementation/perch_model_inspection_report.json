@@ -1,0 +1,57 @@
+{
+  "model_source": "tfhub",
+  "model_handle_or_path": "https://www.kaggle.com/models/google/bird-vocalization-classifier/TensorFlow2/perch_v2_cpu/1",
+  "audio_file": "/data/petrel_acoustics/raw_audio/doc_ar4/rapanui_AR4_june_2023/20230527/20230527_173004.wav",
+  "sample_rate": 32000,
+  "buffer_seconds": 15.0,
+  "model_input_shape": [
+    null,
+    160000
+  ],
+  "logits_shape": [
+    3,
+    14795
+  ],
+  "embeddings_shape": [
+    3,
+    1536
+  ],
+  "label_count": 14795,
+  "embedding_dim": 1536,
+  "expected_embedding_dim": 1536,
+  "frame_count": 3,
+  "window_seconds": 5.0,
+  "nz_bird_label_count": 318,
+  "first_nz_bird_labels": [
+    {
+      "perch_label_number": 9,
+      "common_name": "Redpoll",
+      "scientific_name": "Acanthis flammea",
+      "perch_label": "Acanthis flammea"
+    },
+    {
+      "perch_label_number": 10,
+      "common_name": "Rifleman",
+      "scientific_name": "Acanthisitta chloris",
+      "perch_label": "Acanthisitta chloris"
+    },
+    {
+      "perch_label_number": 64,
+      "common_name": "Common Myna",
+      "scientific_name": "Acridotheres tristis",
+      "perch_label": "Acridotheres tristis"
+    },
+    {
+      "perch_label_number": 132,
+      "common_name": "Common Sandpiper",
+      "scientific_name": "Actitis hypoleucos",
+      "perch_label": "Actitis hypoleucos"
+    },
+    {
+      "perch_label_number": 336,
+      "common_name": "Eurasian Skylark",
+      "scientific_name": "Alauda arvensis",
+      "perch_label": "Alauda arvensis"
+    }
+  ]
+}
