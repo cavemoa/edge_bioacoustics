@@ -12,4 +12,5 @@ soundfile
 sqlite-vec
 tensorflow
 tensorflow-hub
+tqdm
 uvicorn

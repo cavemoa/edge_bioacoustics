@@ -5,3 +5,4 @@ httpx
 ipython
 ipykernel
 jupyterlab
+matplotlib
