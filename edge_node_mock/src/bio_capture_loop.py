@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterator
+from uuid import uuid4
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -255,7 +256,7 @@ def insert_buffer_event(
     cursor = conn.execute(
         """
         INSERT INTO buffer_events(
-            device_id, source_file, file_buffer_index, timestamp_utc,
+            event_uuid, device_id, source_file, file_buffer_index, timestamp_utc,
             inference_buffer_seconds, perch_window_seconds, perch_frame_count,
             audio_saved, retention_reason, max_nz_bird_common_name,
             max_nz_bird_scientific_name, max_nz_bird_logit, max_perch_label,
@@ -263,9 +264,10 @@ def insert_buffer_event(
             gate_trigger_count, retained_clip_count, margin_gate_scores,
             sync_status, created_at_utc
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?);
         """,
         (
+            str(uuid4()),
             config["device_id"],
             str(buffer.source_file),
             buffer.file_buffer_index,

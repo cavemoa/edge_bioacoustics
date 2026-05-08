@@ -8,6 +8,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import msgpack
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -80,6 +81,7 @@ class RetainedAudioClipPayload(BaseModel):
 
 class DetectionPayload(BaseModel):
     buffer_id: int
+    event_uuid: str
     source_file: str | None = None
     file_buffer_index: int | None = None
     timestamp_utc: str
@@ -117,6 +119,14 @@ class DetectionPayload(BaseModel):
         if value not in allowed:
             raise ValueError(f"retention_reason must be one of {sorted(allowed)}")
         return value
+
+    @field_validator("event_uuid")
+    @classmethod
+    def normalize_event_uuid(cls, value: str) -> str:
+        try:
+            return str(UUID(str(value)))
+        except ValueError as exc:
+            raise ValueError("event_uuid must be a valid UUID") from exc
 
     @model_validator(mode="after")
     def require_three_distinct_segments(self) -> "DetectionPayload":
@@ -270,7 +280,7 @@ def insert_batch(
                 cursor = conn.execute(
                     """
                     INSERT INTO hub_buffer_events(
-                        device_id, source_buffer_id, batch_id, source_file,
+                        device_id, source_buffer_id, event_uuid, batch_id, source_file,
                         file_buffer_index, timestamp_utc, inference_buffer_seconds,
                         perch_window_seconds, perch_frame_count, audio_saved,
                         retention_reason, max_nz_bird_common_name,
@@ -280,11 +290,12 @@ def insert_batch(
                         gate_trigger_count, retained_clip_count, margin_gate_scores,
                         received_at_utc
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                     """,
                     (
                         payload.device_id,
                         detection.buffer_id,
+                        detection.event_uuid,
                         batch_id,
                         detection.source_file,
                         detection.file_buffer_index,

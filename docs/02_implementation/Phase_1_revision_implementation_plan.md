@@ -335,7 +335,7 @@ Suggested metadata:
 
 ```text
 phase1_revision = margin_variable_retention_v1
-schema_version = 2
+schema_version = 3
 gate_mode = nz_bird_margin
 gate_threshold = 0.55
 ```
@@ -349,6 +349,7 @@ Recommended clean event fields:
 
 ```text
 buffer_id INTEGER PRIMARY KEY AUTOINCREMENT
+event_uuid TEXT NOT NULL UNIQUE
 device_id TEXT NOT NULL
 source_file TEXT
 file_buffer_index INTEGER
@@ -648,7 +649,7 @@ Required changes:
 document buffer_events as inference events
 document retained_audio_clips as the saved-audio authority
 document margin_gate_scores
-document schema version 2 if adopted
+document schema version 3 if adopted
 document that old duplicate filepath decisions are superseded
 ```
 

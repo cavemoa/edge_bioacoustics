@@ -49,6 +49,7 @@ def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
             """
             CREATE TABLE IF NOT EXISTS buffer_events (
                 buffer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_uuid TEXT NOT NULL UNIQUE,
                 device_id TEXT NOT NULL,
                 source_file TEXT,
                 file_buffer_index INTEGER,
@@ -76,6 +77,8 @@ def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
             );
             """
         )
+        ensure_column(conn, "buffer_events", "event_uuid", "event_uuid TEXT")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_buffer_events_event_uuid ON buffer_events(event_uuid);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_buffer_events_sync_status ON buffer_events(sync_status);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_buffer_events_timestamp ON buffer_events(timestamp_utc);")
         conn.execute(
@@ -122,7 +125,7 @@ def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
         set_metadata(conn, "embedding_dim", embedding_dim)
         set_metadata(conn, "vector_storage_mode", vector_storage.mode)
         set_metadata(conn, "vector_table", vector_storage.table_name)
-        set_metadata(conn, "schema_version", 2)
+        set_metadata(conn, "schema_version", 3)
         set_metadata(conn, "phase1_revision", "margin_variable_retention_v1")
         set_metadata(conn, "gate_mode", str(config.get("bio_gate_mode", "nz_bird_margin")))
         set_metadata(conn, "gate_threshold", str(config.get("bio_margin_threshold", "0.55")))

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import wave
 from pathlib import Path
+from uuid import uuid4
 
 from central_hub_mock.src.init_master_db import init_master_db
 from edge_node_mock.src.audio_smoke_test import run_smoke_check
@@ -88,6 +89,7 @@ class Phase1SetupTest(unittest.TestCase):
             self.assertTrue({"perch_vectors", "perch_vector_blobs"} & tables)
             self.assertEqual(self._metadata(conn, "embedding_dim"), "1536")
             columns = self._columns(conn, "buffer_events")
+            self.assertIn("event_uuid", columns)
             self.assertIn("max_nz_bird_common_name", columns)
             self.assertIn("excluded_label_scores", columns)
             self.assertNotIn("filepath", columns)
@@ -97,12 +99,13 @@ class Phase1SetupTest(unittest.TestCase):
             conn.execute(
                 """
                 INSERT INTO buffer_events(
-                    device_id, timestamp_utc, audio_saved, retention_reason,
+                    event_uuid, device_id, timestamp_utc, audio_saved, retention_reason,
                     gate_mode, gate_threshold, margin_gate_scores, created_at_utc
                 )
-                VALUES ('pi_01', '2026-01-01T00:00:00Z', 0, 'dropped',
+                VALUES (?, 'pi_01', '2026-01-01T00:00:00Z', 0, 'dropped',
                         'nz_bird_margin', 0.55, '[]', '2026-01-01T00:00:00Z');
-                """
+                """,
+                (str(uuid4()),),
             )
             buffer_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
             conn.execute(
@@ -146,6 +149,7 @@ class Phase1SetupTest(unittest.TestCase):
             self.assertEqual(self._metadata(conn, "embedding_dim"), "1536")
             self.assertEqual(conn.execute("PRAGMA journal_mode;").fetchone()[0].lower(), "wal")
             columns = self._columns(conn, "hub_buffer_events")
+            self.assertIn("event_uuid", columns)
             self.assertIn("max_nz_bird_common_name", columns)
             self.assertIn("excluded_label_scores", columns)
             self.assertNotIn("filepath", columns)
@@ -165,14 +169,14 @@ class Phase1SetupTest(unittest.TestCase):
             conn.execute(
                 """
                 INSERT INTO hub_buffer_events(
-                    device_id, source_buffer_id, batch_id, timestamp_utc,
+                    device_id, source_buffer_id, event_uuid, batch_id, timestamp_utc,
                     audio_saved, retention_reason, gate_mode, gate_threshold,
                     margin_gate_scores, received_at_utc
                 )
-                VALUES ('pi_01', 7, ?, '2026-01-01T00:00:00Z', 0, 'dropped',
+                VALUES ('pi_01', 7, ?, ?, '2026-01-01T00:00:00Z', 0, 'dropped',
                         'nz_bird_margin', 0.55, '[]', '2026-01-01T00:00:01Z');
                 """,
-                (batch_id,),
+                (str(uuid4()), batch_id),
             )
             hub_buffer_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
             conn.execute(

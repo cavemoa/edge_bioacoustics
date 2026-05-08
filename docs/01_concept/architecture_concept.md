@@ -1,9 +1,17 @@
 # Technical Specification: Edge-Native Bioacoustic Monitoring System
 
 ## 1. System Overview
-This document outlines the architecture for a remote, power-efficient, edge-machine-learning bioacoustic monitoring system. The system captures environmental audio, performs on-device inference to isolate biological sounds, and securely synchronizes metadata and vector embeddings over a cellular network to a central home server. The system is primarily designed for use on grey-faced petrels at a colony on the North Island of New Zealand. The petrels are present at their burrows in the colony at night.
+This document outlines the architecture for a remote, power-efficient, edge-machine-learning bioacoustic monitoring system. The system captures environmental audio, performs on-device inference to isolate biological sounds, and synchronizes metadata, telemetry, retained-clip metadata, and vector embeddings to a hub database. The system is primarily designed for use on grey-faced petrels at a colony on the North Island of New Zealand. The petrels are present at their burrows in the colony at night.
 
 The architecture is explicitly designed to solve three major challenges of remote AI IoT deployments: **Carrier-Grade NAT (CGNAT) traversal**, **cellular bandwidth limitations**, and **power/thermal management** on battery/solar systems.
+
+The implementation roadmap is intentionally staged. Phase 1 proved the software
+locally on the Linux Mint development PC. Phase 2 moves the edge workload to the
+Raspberry Pi while keeping the hub on the Mint PC as `mint_hub`. Phase 3 moves
+the Pi onto cellular and Tailscale while it is still physically accessible at
+home. Phase 4 migrates the hub to the headless LattePanda. Phase 5 adds solar
+power testing at home. Phase 6 is a full pre-field rehearsal, and Phase 7 is the
+first limited field trial.
 
 ---
 
@@ -12,15 +20,18 @@ The architecture is explicitly designed to solve three major challenges of remot
 *   **Edge Power:** 40W 12v Solar Panel, 20Ah LiFePO4 battery with BMS
 *   **Solar Charging Management:** PV Pi: Solar Charging Hat for Raspberry Pi
 *   **Edge Network Gateway:** TP-Link Archer MR100-Outdoor 4G LTE Router.
-*   **Central Ingestion Hub:** LattePanda Alpha (located on a secure home network).
+*   **Development Hub:** Linux Mint PC running `mint_hub` during Phases 2 and 3.
+*   **Central Ingestion Hub:** LattePanda Alpha, introduced after the Pi and network path are stable.
 *   **Microphones:** Primo EM272Z1 Omni Electret Condenser Microphone
 *   **USB Sound card:** Rode AI-Micro Compact Audio Interface
 
 ---
 
 ## 3. Network Architecture & Security
-*   **Mesh VPN (Tailscale):** Tailscale is deployed on both the Raspberry Pi 5 and the LattePanda Alpha. This establishes a secure, peer-to-peer WireGuard mesh network.
-*   **CGNAT Bypass:** By utilizing Tailscale's static `100.x.x.x` IP addresses, the system completely bypasses the cellular provider's CGNAT constraints, allowing bidirectional communication without port forwarding.
+*   **Phase 2 Local LAN:** The Raspberry Pi first sends batches to `mint_hub` on the Linux Mint PC over the home local network.
+*   **Phase 3 Mesh VPN (Tailscale):** Tailscale is then deployed on the Raspberry Pi and Mint PC while the Pi is still accessible at home.
+*   **CGNAT Bypass:** Once cellular networking is introduced, Tailscale's static `100.x.x.x` IP addresses bypass the cellular provider's CGNAT constraints without port forwarding.
+*   **Phase 4 Hub Migration:** After Pi cellular/Tailscale behavior is understood, the hub role migrates from Mint PC to LattePanda.
 *   **Application Security:** The central API server enforces an application-level API key (`X-API-Key` header) to prevent unauthorized internal network requests.
 
 ---
@@ -46,7 +57,7 @@ The audio capture and inference pipeline operates asynchronously and is complete
 Data is moved from the Edge to the Central Hub via a highly optimized, asynchronous transport pipeline.
 
 ### 5.1 The Sender Daemon
-*   A standalone Python script running as a background `systemd` service.
+*   A standalone Python script, initially run manually or by a simple schedule during local-network testing, then promoted to a background `systemd` service or timer.
 *   **Cadence:** The daemon wakes up exactly once per hour. 
 *   **Query:** It queries the local SQLite database for all rows where `sync_status = 'pending'`.
 
@@ -91,11 +102,11 @@ Data is moved from the Edge to the Central Hub via a highly optimized, asynchron
 
 ---
 
-## 6. Central Ingestion Server (LattePanda Alpha)
-The central hub processes incoming telemetry and ML data, making it immediately available for offline analysis.
+## 6. Central Ingestion Server
+The central hub processes incoming telemetry and ML data, making it immediately available for offline analysis. The hub has two planned forms: `mint_hub` on the Linux Mint development PC during Phases 2 and 3, then the LattePanda hub from Phase 4 onward.
 
 ### 6.1 FastAPI Service
-*   A lightweight, continuous FastAPI server listens on the LattePanda's Tailscale IP.
+*   A lightweight FastAPI server listens first on the Mint PC local-network or Tailscale address, then later on the LattePanda's selected network address.
 *   It exposes a secure `/ingest_batch` POST endpoint.
 *   **Validation:** Incoming MessagePack data is unpacked and strictly validated against Pydantic schemas.
 
@@ -109,9 +120,9 @@ The central hub processes incoming telemetry and ML data, making it immediately 
 ## 7. Passive Watchdog & Alerting
 To prevent the "Observer Effect" (waking the 4G modem to check system health, thereby draining the battery), the system relies on a passive "Dead Man's Switch".
 
-*   **Implementation:** A cron job runs every 15 minutes on the LattePanda Alpha.
+*   **Implementation:** A scheduled watchdog runs first on the Mint PC hub, then later on the LattePanda Alpha.
 *   **Logic:** It checks the `health_metrics` SQLite table for the most recent check-in from the Pi.
-*   **Alerting:** If the latest timestamp is older than 75 minutes (accounting for the 60-minute sync cycle + 15 minutes of network grace time), the LattePanda triggers an automated alert (e.g., via Telegram or Email) indicating that the edge node has likely suffered a power or hardware failure.
+*   **Alerting:** If the latest timestamp is older than 75 minutes (accounting for the 60-minute sync cycle + 15 minutes of network grace time), the current hub triggers an automated alert (e.g., via Telegram or Email) indicating that the edge node has likely suffered a power or hardware failure.
 
 ---
 
@@ -151,21 +162,21 @@ This script acts as your courier. It wakes up, gathers the data, checks the Pi's
     *   Query the local SQLite database for all rows where `sync_status = 'pending'`.
     *   Bundle the telemetry and the database rows into a single dictionary.
     *   Serialize the dictionary into raw binary using `msgpack.packb()`.
-    *   Send an HTTP POST request to the LattePanda's Tailscale IP using the API Key header.
+    *   Send an HTTP POST request to the configured hub API using the API Key header.
     *   If a `200 OK` is received, update the local database rows to `sync_status = 'synced'`.
 
 ---
 
-### **Part 2: LattePanda Alpha (The Central Hub)**
+### **Part 2: The Hub**
 
-The LattePanda also requires two scripts: one to passively receive the data, and one to actively monitor the health of the system.
+The hub requires two scripts: one to passively receive the data, and one to actively monitor the health of the system. During Phases 2 and 3 these run as `mint_hub` on the Linux Mint PC. During Phase 4 they migrate to the LattePanda.
 
 #### **3. `ingestion_api.py` (The FastAPI Server)**
 This is the central nervous system of your database. It must be robust, strictly validated, and always online.
-*   **Run Method:** Started on boot via `systemd`, running through an ASGI server like `uvicorn` (e.g., `uvicorn ingestion_api:app --host 100.x.x.x --port 8000`).
+*   **Run Method:** Started manually during early Mint hub testing, then via `systemd` on the production hub, running through an ASGI server like `uvicorn`.
 *   **Primary Libraries:** `fastapi`, `uvicorn`, `pydantic`, `sqlite3`, `msgpack`.
 *   **Core Responsibilities:**
-    *   Listen exclusively on the Tailscale IP interface.
+    *   Listen on the configured hub interface for the current phase.
     *   Authenticate incoming POST requests using a static `X-API-Key` header.
     *   Unpack the incoming MessagePack binary payload.
     *   Strictly validate the data structure and data types using Pydantic models.
@@ -177,7 +188,7 @@ This is a lightweight script that ensures you know if the Pi dies, without wasti
 *   **Run Method:** Triggered every 15 minutes via a `cron` job.
 *   **Primary Libraries:** `sqlite3`, `requests` (for Telegram/Discord webhooks) or `smtplib` (for email alerts).
 *   **Core Responsibilities:**
-    *   Query the master `health_metrics` table on the LattePanda.
+    *   Query the master `health_metrics` table on the current hub.
     *   Retrieve the most recent `timestamp` for the `pi_01` device.
     *   Compare the timestamp against the current system time.
     *   If the difference exceeds 75 minutes, fire an alert via webhook or email stating that the edge node has missed its check-in window.

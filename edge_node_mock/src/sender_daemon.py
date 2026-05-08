@@ -76,6 +76,7 @@ def load_pending_detections(config: dict[str, Any], *, limit: int | None = None)
             detections.append(
                 {
                     "buffer_id": buffer_id,
+                    "event_uuid": row["event_uuid"],
                     "source_file": row_value(row, "source_file"),
                     "file_buffer_index": row_value(row, "file_buffer_index"),
                     "timestamp_utc": row["timestamp_utc"],

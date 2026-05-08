@@ -6,6 +6,7 @@ import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
+from uuid import UUID, uuid4
 
 import numpy as np
 import requests
@@ -29,6 +30,7 @@ class SenderDaemonTest(unittest.TestCase):
 
         self.assertEqual(len(detections), 1)
         self.assertEqual(detections[0]["buffer_id"], 1)
+        self.assertIsInstance(UUID(detections[0]["event_uuid"]), UUID)
         self.assertEqual(len(detections[0]["embedding_segments"]), 3)
         self.assertEqual(len(detections[0]["embedding_segments"][0]["embedding"]), 1536 * 4)
         self.assertEqual(detections[0]["gate_mode"], "nz_bird_margin")
@@ -133,7 +135,7 @@ class SenderDaemonTest(unittest.TestCase):
                     cursor = conn.execute(
                         """
                         INSERT INTO buffer_events(
-                            device_id, source_file, file_buffer_index, timestamp_utc,
+                            event_uuid, device_id, source_file, file_buffer_index, timestamp_utc,
                             inference_buffer_seconds, perch_window_seconds, perch_frame_count,
                             audio_saved, retention_reason, max_nz_bird_common_name,
                             max_nz_bird_scientific_name, max_nz_bird_logit,
@@ -142,13 +144,14 @@ class SenderDaemonTest(unittest.TestCase):
                             retained_clip_count, margin_gate_scores,
                             sync_status, created_at_utc
                         )
-                        VALUES ('pi_01', 'fixture.wav', ?, ?, 15.0, 5.0, 3,
+                        VALUES (?, 'pi_01', 'fixture.wav', ?, ?, 15.0, 5.0, 3,
                                 ?, ?, 'Nova Bird', 'Aves nova', 3.5,
                                 'Aves nova', 3.5, '[]', '[]',
                                 'nz_bird_margin', 0.55, ?, ?, '[]',
                                 'pending', ?);
                         """,
                         (
+                            str(uuid4()),
                             index,
                             now,
                             int(has_clip),

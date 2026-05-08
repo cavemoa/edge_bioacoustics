@@ -11,13 +11,33 @@ storage, weather, and cellular data are all constrained.
 
 ![Bioacoustic IoT concept diagram](diagrams/bioacoustic_IOT_concept.png)
 
+## Table Of Contents
+
+- [Project Status](#project-status)
+- [Phase Roadmap](#phase-roadmap)
+- [System Overview](#system-overview)
+- [Data Flow](#data-flow)
+- [Runtime Components](#runtime-components)
+- [Data Strategy](#data-strategy)
+- [SQLite Schema](#sqlite-schema)
+- [Quick Start](#quick-start)
+- [Teaching Notebooks](#teaching-notebooks)
+- [Repository Map](#repository-map)
+- [Key Documents](#key-documents)
+- [Labels](#labels)
+- [Development Notes](#development-notes)
+- [License](#license)
+
 ## Project Status
 
 The project has completed Phase 1 desktop mock development.
 
 Phase 1 built and tested the full software path locally before moving to real
 Raspberry Pi hardware, field microphones, Tailscale networking, 4G transport,
-I2C telemetry, and systemd services.
+I2C telemetry, systemd services, and off-grid power. It also proved that the
+design should be revised as evidence arrives: the current gate, retained-audio
+strategy, schema, test scripts, and notebooks are all outcomes of that desktop
+iteration.
 
 Completed Phase 1 work:
 
@@ -57,20 +77,75 @@ retained clips is here:
 
 [docs/02_implementation/Phase_1_revision_implementation_plan.md](docs/02_implementation/Phase_1_revision_implementation_plan.md)
 
+## Phase Roadmap
+
+The project now uses a staged roadmap that changes one major source of risk at a
+time. Phase 1 showed that later phases will probably keep evolving as practical
+testing reveals better choices, so the phase documents are concept scopes rather
+than frozen implementation contracts.
+
+1. **Phase 1: Desktop Development**
+
+   Completed local software proof on the Linux Mint development PC using mock
+   edge and hub workspaces, recorded audio, Perch inference, SQLite, MessagePack,
+   teaching notebooks, gate tuning, and full six-night test runs.
+
+2. **Phase 2: Initial Node Development**
+
+   Move the edge workload onto the Raspberry Pi while keeping the hub on the
+   Linux Mint PC as a new `mint_hub`. The Pi will first process a folder of the
+   six-night recordings, then later add a USB microphone for live audio once
+   file replay is stable.
+
+3. **Phase 3: Node Cellular Deployment**
+
+   Move the Pi from local LAN to cellular networking and Tailscale while the Pi
+   remains physically accessible at home. `mint_hub` remains the analysis and
+   ingestion hub during this network-hardening phase.
+
+4. **Phase 4: Hub Migration**
+
+   Migrate the hub role from the Mint PC to the headless LattePanda. The goal is
+   to prove ingestion, watchdogs, database storage, logs, and reboot behavior on
+   the intended hub hardware.
+
+5. **Phase 5: Solar Power Testing At Home**
+
+   Move the Pi onto the planned battery and solar power path while still testing
+   at home. This phase measures power draw, telemetry, thermal behavior, storage
+   growth, and sync cadence under realistic duty cycles.
+
+6. **Phase 6: Pre-Field Operational Rehearsal**
+
+   Run the complete system at home in a near-field configuration. This is the
+   full dress rehearsal for unattended operation, failure drills, backups,
+   deployment checklists, and retrieval procedures.
+
+7. **Phase 7: First Field Trials**
+
+   Conduct the first limited field deployment at the target site. The aim is to
+   learn from real ecological, power, network, and operational conditions before
+   expanding deployment scope.
+
 ## System Overview
 
 The planned system has two main sides.
 
-The edge node is a Raspberry Pi 5 in the field. It captures 48 kHz audio,
-processes it as 15-second inference buffers, downsamples to 32 kHz for Perch
-2.0, and evaluates the three 5-second Perch frames independently. Each buffer
-produces margin-gate evidence, NZ bird subset scores, excluded-label evidence,
-and three 1536-dimensional embeddings.
+The edge node is a Raspberry Pi 5. During Phase 2 it will process a folder of
+known recordings on the local network; later it will process live USB microphone
+audio, then move onto cellular networking, and eventually off-grid solar power.
+It captures or replays audio as 15-second inference buffers, downsamples to
+32 kHz for Perch 2.0 when required, and evaluates the three 5-second Perch
+frames independently. Each buffer produces margin-gate evidence, NZ bird subset
+scores, excluded-label evidence, and three 1536-dimensional embeddings.
 
-The central hub is a LattePanda Alpha on a secure home network. It receives
-hourly MessagePack batches from the edge node, validates them with a FastAPI
-ingestion service, writes them into a WAL-enabled SQLite database, and monitors
-device health with a passive watchdog.
+The central hub begins as `mint_hub` on the Linux Mint development PC. This
+keeps Phase 2 and Phase 3 testing inspectable while the Pi, local network,
+cellular link, and Tailscale setup are still changing. Once those pieces are
+stable, the hub role moves to the LattePanda Alpha. Both hub forms receive
+MessagePack batches from the edge node, validate them with a FastAPI ingestion
+service, write them into a WAL-enabled SQLite database, and monitor device
+health with a passive watchdog.
 
 ## Data Flow
 
@@ -115,7 +190,9 @@ flowchart LR
 
 ## Runtime Components
 
-The architecture is built around four scripts:
+The Phase 1 architecture is built around four scripts. In Phase 2 the hub-side
+scripts will be adapted into `mint_hub` before later migrating to the
+LattePanda.
 
 1. `edge_node_mock/src/bio_capture_loop.py`: implemented edge audio buffering, Perch inference, gating, audio retention, and edge database writes.
 2. `edge_node_mock/src/sender_daemon.py`: implemented edge database sync, MessagePack serialization, desktop mock telemetry, and HTTP transport.
@@ -173,6 +250,7 @@ erDiagram
 
     EDGE_BUFFER_EVENTS {
         int buffer_id PK
+        text event_uuid UK
         text device_id
         text source_file
         int file_buffer_index
@@ -238,6 +316,7 @@ erDiagram
         int hub_buffer_id PK
         text device_id
         int source_buffer_id
+        text event_uuid UK
         int batch_id FK
         text source_file
         int file_buffer_index
@@ -489,6 +568,12 @@ tests/
 
 - [Architecture concept](docs/01_concept/architecture_concept.md)
 - [Phase 1 desktop development concept](docs/01_concept/Phase_1_Desktop_Development.md)
+- [Phase 2 initial node development concept](docs/01_concept/Phase_2_initial_node_development.md)
+- [Phase 3 node cellular deployment concept](docs/01_concept/Phase_3_node_cellular_deployment.md)
+- [Phase 4 hub migration concept](docs/01_concept/Phase_4_hub_migration.md)
+- [Phase 5 solar home testing concept](docs/01_concept/Phase_5_Solar_Home_Testing.md)
+- [Phase 6 pre-field rehearsal concept](docs/01_concept/Phase_6_Pre_Field_Rehearsal.md)
+- [Phase 7 first field trials concept](docs/01_concept/Phase_7_First_Field_Trials.md)
 - [Phase 1 implementation plan](docs/02_implementation/Phase_1_implementation_plan.md)
 - [Phase 1 revision implementation plan](docs/02_implementation/Phase_1_revision_implementation_plan.md)
 - [Phase 1 schema decisions](docs/02_implementation/schema_decisions.md)

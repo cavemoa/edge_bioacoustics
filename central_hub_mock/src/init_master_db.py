@@ -63,6 +63,7 @@ def init_master_db(config_path: str | Path, *, reset: bool = False) -> Path:
                 hub_buffer_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 device_id TEXT NOT NULL,
                 source_buffer_id INTEGER NOT NULL,
+                event_uuid TEXT NOT NULL,
                 batch_id INTEGER NOT NULL,
                 source_file TEXT,
                 file_buffer_index INTEGER,
@@ -86,11 +87,13 @@ def init_master_db(config_path: str | Path, *, reset: bool = False) -> Path:
                 margin_gate_scores TEXT NOT NULL,
                 received_at_utc TEXT NOT NULL,
                 FOREIGN KEY(batch_id) REFERENCES ingestion_batches(batch_id) ON DELETE CASCADE,
-                UNIQUE(device_id, source_buffer_id)
+                UNIQUE(device_id, event_uuid)
             );
             """
         )
+        ensure_column(conn, "hub_buffer_events", "event_uuid", "event_uuid TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_hub_buffer_events_device_source ON hub_buffer_events(device_id, source_buffer_id);")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_hub_buffer_events_device_event_uuid ON hub_buffer_events(device_id, event_uuid);")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS hub_retained_audio_clips (
@@ -153,7 +156,7 @@ def init_master_db(config_path: str | Path, *, reset: bool = False) -> Path:
         set_metadata(conn, "embedding_dim", embedding_dim)
         set_metadata(conn, "vector_storage_mode", vector_storage.mode)
         set_metadata(conn, "vector_table", vector_storage.table_name)
-        set_metadata(conn, "schema_version", 2)
+        set_metadata(conn, "schema_version", 3)
         set_metadata(conn, "phase1_revision", "margin_variable_retention_v1")
         set_metadata(conn, "gate_mode", "nz_bird_margin")
         set_metadata(conn, "gate_threshold", "0.55")

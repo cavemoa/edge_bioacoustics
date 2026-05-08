@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 import msgpack
 import numpy as np
@@ -80,11 +81,19 @@ class IngestionApiTest(unittest.TestCase):
                 content=msgpack.packb(unexpected_field, use_bin_type=True),
                 headers={"X-API-Key": "test-key"},
             )
+            invalid_uuid = _payload(buffer_ids=[3])
+            invalid_uuid["detections"][0]["event_uuid"] = "not-a-uuid"
+            invalid_uuid_response = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(invalid_uuid, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
 
         self.assertEqual(bad_msgpack.status_code, 422)
         self.assertEqual(missing_fields.status_code, 422)
         self.assertEqual(bad_embedding_response.status_code, 422)
         self.assertEqual(unexpected_field_response.status_code, 422)
+        self.assertEqual(invalid_uuid_response.status_code, 422)
 
     def test_bad_retained_clip_metadata_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,6 +136,49 @@ class IngestionApiTest(unittest.TestCase):
         self.assertEqual(audio_mismatch.status_code, 422)
         self.assertEqual(bad_span.status_code, 422)
         self.assertEqual(bad_duration.status_code, 422)
+
+    def test_source_buffer_id_can_repeat_when_event_uuid_differs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path, db_path = self._write_config(Path(tmp))
+            client = TestClient(create_app(config_path))
+            first_payload = _payload(buffer_ids=[7])
+            second_payload = _payload(buffer_ids=[7])
+
+            first = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(first_payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+            second = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(second_payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+            counts = self._db_counts(db_path)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(counts["hub_buffer_events"], 2)
+
+    def test_duplicate_event_uuid_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path, _ = self._write_config(Path(tmp))
+            client = TestClient(create_app(config_path))
+            payload = _payload(buffer_ids=[7])
+
+            first = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+            duplicate = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(duplicate.status_code, 409)
 
     def test_device_allowlist_is_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -201,6 +253,7 @@ def _detection(buffer_id: int, timestamp_utc: str) -> dict:
     embedding = np.zeros(1536, dtype=np.float32).tobytes()
     return {
         "buffer_id": buffer_id,
+        "event_uuid": str(uuid4()),
         "source_file": "fixture.wav",
         "file_buffer_index": buffer_id,
         "timestamp_utc": timestamp_utc,

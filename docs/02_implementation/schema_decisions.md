@@ -1,10 +1,10 @@
 # Phase 1 Schema Decisions
 
-Phase 1 revision databases use schema version 2:
+Phase 1 revision databases use schema version 3:
 
 ```text
 phase1_revision = margin_variable_retention_v1
-schema_version = 2
+schema_version = 3
 gate_mode = nz_bird_margin
 gate_threshold = 0.55
 ```
@@ -14,6 +14,11 @@ gate_threshold = 0.55
 `buffer_events` and `hub_buffer_events` are inference-event tables. Each row
 represents one 15-second compute unit and always has three 5-second Perch frame
 embeddings.
+
+Each inference event has a stable `event_uuid`. The edge still uses
+`buffer_id` as the local row id, but the hub uses `(device_id, event_uuid)` as
+the long-term uniqueness key so a reset edge database cannot collide with
+previously synced `buffer_id` values.
 
 Saved audio is represented only by child rows:
 

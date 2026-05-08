@@ -1,5 +1,5 @@
 > Historical note: this was an early schema sketch. The current Phase 1 revision
-> uses schema version 2, with retained audio represented by child
+> uses schema version 3, with retained audio represented by child
 > `retained_audio_clips` rows, as documented in
 > `docs/02_implementation/schema_decisions.md`.
 

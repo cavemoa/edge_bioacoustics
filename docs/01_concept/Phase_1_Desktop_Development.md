@@ -1,38 +1,58 @@
-### **Phase 1: Local Development & Mocking (The Desktop Phase)**
+# Phase 1: Desktop Development
 
-Your Linux Mint PC is your sandbox. The goal of this phase is to build the core logic of all four scripts without relying on physical sensors, 4G networks, or actual microcontrollers.
+Phase 1 is the local software proving ground. The aim is to build and revise the
+core edge and hub logic on the Linux Mint development PC before introducing
+Raspberry Pi hardware, live microphones, cellular networking, Tailscale, or
+off-grid power.
 
-#### **1. Preparation (Setting the Stage)**
-Before writing any script logic, you need to prepare your local Linux environment to mimic the dual-device architecture:
-* **Workspace Separation:** Create two distinct root folders in VS Code (e.g., `edge_node_mock` and `central_hub_mock`) to prevent accidental cross-contamination of dependencies.
-* **Virtual Environments:** Initialize a separate Python virtual environment (`venv`) in each folder. 
-* **Acquire Test Assets:** Find or generate a pre-recorded 15-second, 48kHz `.wav` file. This will act as your "fake microphone" for the capture loop.
+This phase has deliberately treated the design as changeable. The project used
+realistic mock audio, Perch inference, SQLite databases, and localhost hub
+ingestion to discover what the actual system needed. That process replaced the
+early fixed-retention gate with the current North Island NZ bird margin gate and
+variable-length retained clips.
 
-#### **2. Execution Steps**
+## Scope
 
-**Step 2.1: Database Initialization**
-* **Action:** Run a setup script to create both the edge SQLite database and the master WAL-enabled SQLite database on your local hard drive.
-* **Details:** Ensure the schema strictly matches the final design. The edge database needs a table for embeddings (stored as raw 32-bit float BLOBs) with a `sync_status` column. 
+Phase 1 covers:
 
-**Step 2.2: Mocking the Capture Loop (`bio_capture_loop.py`)**
-* **Action:** Write the core inference script, but bypass hardware inputs.
-* **Details:** Do not use a real microphone yet. Write a mock generator that feeds your pre-recorded `.wav` file into the buffer. Pass this to Perch 2.0, generate the embeddings, and insert them into your local edge SQLite database with `sync_status = 'pending'`. 
+- A mock edge workspace that reads recorded WAV files from disk.
+- A mock hub workspace that receives MessagePack payloads over localhost.
+- Perch CPU inference on 15-second compute buffers split into three 5-second
+  frames.
+- Margin-based bioacoustic gating against configured excluded labels.
+- Variable 5, 10, or 15 second retained FLAC clips based on consecutive
+  triggered frames.
+- Edge and hub SQLite schemas for events, retained clips, embeddings, and
+  telemetry.
+- Teaching notebooks and test scripts that make the pipeline inspectable.
+- Full six-night desktop test runs against the development recordings.
 
-**Step 2.3: Building the Hub API (`ingestion_api.py`)**
-* **Action:** Develop the central receiver on the "server" side.
-* **Details:** Spin up the `ingestion_api.py` FastAPI server on `localhost`[cite: 32]. Implement your API key authentication and write the Pydantic models to strictly validate incoming MessagePack payloads before inserting them into your master database.
+## Current Outcome
 
-**Step 2.4: Mocking the Sender Daemon (`sender_daemon.py`)**
-* **Action:** Build the transport layer to connect your two local components.
-* **Details:** Hardcode dummy telemetry data (e.g., `cpu_temp = 45.0`, `battery_voltage = 12.4`) instead of trying to read from the I2C bus. Have the script query the local edge database for pending rows, bundle them with the dummy telemetry, pack it using MessagePack, and POST it to your `localhost` FastAPI server. 
-* **Testing:** You can trigger the sender script in one terminal and watch the FastAPI server receive and unpack it in another.
+The Phase 1 system is now a working desktop mock rather than a paper design.
+The edge capture loop, sender daemon, hub ingestion API, watchdog, notebooks,
+single-file gate tester, and six-night test runner are all in place.
 
-**Step 2.5: Mocking the Watchdog (`watchdog_alert.py`)**
-* **Action:** Build the dead man's switch.
-* **Details:** Write a script that queries your local master database's health metrics table. Manually manipulate the timestamps in your local database to be older than 75 minutes, and verify that the script successfully triggers a dummy alert printout to your terminal.
+The important design decisions coming out of Phase 1 are:
 
-#### **3. Definition of Done**
-You are ready to move to Phase 2 (VS Code Remote - SSH) when:
-1. Your mock audio loops continuously and populates the local edge database.
-2. Running the sender daemon successfully transmits the data locally, updates the edge database to `sync_status = 'synced'`, and populates the master database.
-3. The watchdog correctly identifies stale timestamps.
+- Retained audio is variable length, not a fixed 15 seconds.
+- The gate is based on NZ bird logit margin over excluded noise labels.
+- Every inference event has a stable `event_uuid` for long-term sync safety.
+- YAML configuration is the contract between scripts rather than long command
+  lines or hardcoded paths.
+- The hub and edge database schemas should be expected to evolve during staged
+  testing.
+
+## Definition Of Done
+
+Phase 1 is complete when:
+
+1. The desktop mock can process representative audio into edge SQLite events,
+   embeddings, retained clips, and local metrics.
+2. Pending edge events can be synchronized to the local hub API using
+   MessagePack.
+3. The hub database can be inspected and the watchdog can evaluate telemetry.
+4. The gate and retained clip behavior have been reviewed against known
+   reference recordings.
+5. The documentation records the limitations and open assumptions before moving
+   onto physical Raspberry Pi testing.
