@@ -60,43 +60,48 @@ class RetainedAudioClipPayload(BaseModel):
     @field_validator("retention_reason")
     @classmethod
     def validate_retention_reason(cls, value: str) -> str:
-        allowed = {"bio_hit", "validation_sample"}
+        allowed = {"bio_hit"}
         if value not in allowed:
             raise ValueError(f"retention_reason must be one of {sorted(allowed)}")
         return value
 
     @model_validator(mode="after")
     def validate_clip_span(self) -> "RetainedAudioClipPayload":
-        if self.start_segment_index < 0 or self.end_segment_index > 2:
-            raise ValueError("clip segment indexes must be between 0 and 2")
+        if self.start_segment_index < 0 or self.end_segment_index < 0:
+            raise ValueError("clip segment indexes must be >= 0")
         if self.end_segment_index < self.start_segment_index:
             raise ValueError("end_segment_index must be >= start_segment_index")
         if self.triggered_frame_count != self.end_segment_index - self.start_segment_index + 1:
             raise ValueError("triggered_frame_count must match the retained segment span")
-        if self.duration_s not in {5.0, 10.0, 15.0}:
-            raise ValueError("duration_s must be 5, 10, or 15 seconds")
+        if self.duration_s <= 0:
+            raise ValueError("duration_s must be > 0")
         return self
 
 
 class DetectionPayload(BaseModel):
     buffer_id: int
+    source_file: str | None = None
+    file_buffer_index: int | None = None
     timestamp_utc: str
+    inference_buffer_seconds: float = 15.0
+    perch_window_seconds: float = 5.0
+    perch_frame_count: int = 3
     audio_saved: int | bool
     retention_reason: str
-    filepath: str | None = None
-    max_bio_label: str | None = None
-    max_bio_logit: float | None = None
-    noise_logits: str | None = None
+    max_nz_bird_common_name: str | None = None
+    max_nz_bird_scientific_name: str | None = None
+    max_nz_bird_logit: float | None = None
     max_perch_label: str | None = None
     max_perch_logit: float | None = None
+    excluded_label_scores: str | None = None
     nz_bird_logits: str | None = None
-    gate_mode: str | None = None
-    gate_threshold: float | None = None
+    gate_mode: str
+    gate_threshold: float
     gate_trigger_count: int = 0
     retained_clip_count: int = 0
-    margin_gate_scores: str | None = None
+    margin_gate_scores: str
     retained_audio_clips: list[RetainedAudioClipPayload] = Field(default_factory=list)
-    embedding_segments: list[EmbeddingSegmentPayload] = Field(min_length=3, max_length=3)
+    embedding_segments: list[EmbeddingSegmentPayload]
 
     model_config = ConfigDict(extra="forbid")
 
@@ -108,7 +113,7 @@ class DetectionPayload(BaseModel):
     @field_validator("retention_reason")
     @classmethod
     def validate_retention_reason(cls, value: str) -> str:
-        allowed = {"bio_hit", "validation_sample", "dropped"}
+        allowed = {"bio_hit", "dropped"}
         if value not in allowed:
             raise ValueError(f"retention_reason must be one of {sorted(allowed)}")
         return value
@@ -116,12 +121,29 @@ class DetectionPayload(BaseModel):
     @model_validator(mode="after")
     def require_three_distinct_segments(self) -> "DetectionPayload":
         indexes = [segment.segment_index for segment in self.embedding_segments]
-        if sorted(indexes) != [0, 1, 2]:
-            raise ValueError("embedding_segments must contain segment_index values 0, 1, and 2")
+        expected_indexes = list(range(self.perch_frame_count))
+        if sorted(indexes) != expected_indexes:
+            raise ValueError(f"embedding_segments must contain segment_index values {expected_indexes}")
         if self.retained_clip_count != len(self.retained_audio_clips):
             raise ValueError("retained_clip_count must equal len(retained_audio_clips)")
         if int(self.audio_saved) != int(self.retained_clip_count > 0):
             raise ValueError("audio_saved must equal retained_clip_count > 0")
+        if self.retention_reason == "bio_hit" and self.retained_clip_count == 0:
+            raise ValueError("bio_hit detections must include at least one retained clip")
+        if self.retention_reason == "dropped" and self.retained_clip_count != 0:
+            raise ValueError("dropped detections must not include retained clips")
+        for clip in self.retained_audio_clips:
+            if clip.end_segment_index >= self.perch_frame_count:
+                raise ValueError("retained clip segment indexes must fit perch_frame_count")
+            expected_duration = clip.triggered_frame_count * self.perch_window_seconds
+            if abs(clip.duration_s - expected_duration) > 1e-6:
+                raise ValueError("duration_s must equal triggered_frame_count * perch_window_seconds")
+            expected_start = clip.start_segment_index * self.perch_window_seconds
+            expected_end = (clip.end_segment_index + 1) * self.perch_window_seconds
+            if abs(clip.start_offset_s - expected_start) > 1e-6:
+                raise ValueError("start_offset_s must match start_segment_index * perch_window_seconds")
+            if abs(clip.end_offset_s - expected_end) > 1e-6:
+                raise ValueError("end_offset_s must match retained clip end segment")
         return self
 
 
@@ -248,28 +270,36 @@ def insert_batch(
                 cursor = conn.execute(
                     """
                     INSERT INTO hub_buffer_events(
-                        device_id, source_buffer_id, batch_id, timestamp_utc,
-                        audio_saved, retention_reason, filepath, max_bio_label,
-                        max_bio_logit, noise_logits, max_perch_label,
-                        max_perch_logit, nz_bird_logits, gate_mode, gate_threshold,
+                        device_id, source_buffer_id, batch_id, source_file,
+                        file_buffer_index, timestamp_utc, inference_buffer_seconds,
+                        perch_window_seconds, perch_frame_count, audio_saved,
+                        retention_reason, max_nz_bird_common_name,
+                        max_nz_bird_scientific_name, max_nz_bird_logit,
+                        max_perch_label, max_perch_logit, excluded_label_scores,
+                        nz_bird_logits, gate_mode, gate_threshold,
                         gate_trigger_count, retained_clip_count, margin_gate_scores,
                         received_at_utc
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                     """,
                     (
                         payload.device_id,
                         detection.buffer_id,
                         batch_id,
+                        detection.source_file,
+                        detection.file_buffer_index,
                         detection.timestamp_utc,
+                        detection.inference_buffer_seconds,
+                        detection.perch_window_seconds,
+                        detection.perch_frame_count,
                         int(detection.audio_saved),
                         detection.retention_reason,
-                        detection.filepath,
-                        detection.max_bio_label,
-                        detection.max_bio_logit,
-                        detection.noise_logits,
+                        detection.max_nz_bird_common_name,
+                        detection.max_nz_bird_scientific_name,
+                        detection.max_nz_bird_logit,
                         detection.max_perch_label,
                         detection.max_perch_logit,
+                        detection.excluded_label_scores,
                         detection.nz_bird_logits,
                         detection.gate_mode,
                         detection.gate_threshold,

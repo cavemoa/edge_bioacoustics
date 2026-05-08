@@ -9,7 +9,15 @@ import soundfile as sf
 
 from datetime import datetime
 
-from scripts.run_phase1_full_test import count_audio_plan, default_output_dir, discover_night_dirs, percentile
+from scripts.run_phase1_full_test import (
+    RETAINED_CLIP_FIELDNAMES,
+    count_audio_plan,
+    default_output_dir,
+    discover_night_dirs,
+    percentile,
+    resolve_plot_style,
+    run_full_test,
+)
 
 
 class Phase1FullTestRunnerTests(unittest.TestCase):
@@ -61,6 +69,39 @@ class Phase1FullTestRunnerTests(unittest.TestCase):
         path = default_output_dir(datetime(2026, 5, 8, 8, 54))
 
         self.assertEqual(path.parts[-3:], ("phase1_full_test", "080526", "run-0854"))
+
+    def test_full_runner_exposes_retained_clip_csv_and_plot_style_contract(self) -> None:
+        self.assertIn("filepath", RETAINED_CLIP_FIELDNAMES)
+        self.assertIn("duration_seconds", RETAINED_CLIP_FIELDNAMES)
+        self.assertIn("triggered_frame_count", RETAINED_CLIP_FIELDNAMES)
+
+        style = resolve_plot_style(
+            {
+                "plot_style": {
+                    "start_line_color": "green",
+                    "line_alpha": "0.5",
+                    "clip_bar_height_fraction": "0.1",
+                }
+            }
+        )
+
+        self.assertEqual(style["start_line_color"], "green")
+        self.assertEqual(style["end_line_color"], "red")
+        self.assertAlmostEqual(style["line_alpha"], 0.5)
+        self.assertAlmostEqual(style["clip_bar_height_fraction"], 0.1)
+
+    def test_full_runner_rejects_skip_audio_save_with_hub_sync(self) -> None:
+        args = type(
+            "Args",
+            (),
+            {
+                "skip_audio_save": True,
+                "sync_to_hub": True,
+            },
+        )()
+
+        with self.assertRaisesRegex(ValueError, "skip-audio-save"):
+            run_full_test(args)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,10 @@
 
 
 
+> Historical note: this was an early gate-design sketch. The current Phase 1
+> revision uses the NZ-bird margin gate and variable retained clips documented
+> in `docs/02_implementation/schema_decisions.md`.
+
 
 
 

@@ -50,42 +50,32 @@ def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
             CREATE TABLE IF NOT EXISTS buffer_events (
                 buffer_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 device_id TEXT NOT NULL,
+                source_file TEXT,
+                file_buffer_index INTEGER,
                 timestamp_utc TEXT NOT NULL,
+                inference_buffer_seconds REAL NOT NULL DEFAULT 15.0,
+                perch_window_seconds REAL NOT NULL DEFAULT 5.0,
+                perch_frame_count INTEGER NOT NULL DEFAULT 3,
                 audio_saved INTEGER NOT NULL DEFAULT 0 CHECK(audio_saved IN (0, 1)),
-                retention_reason TEXT NOT NULL CHECK(retention_reason IN ('bio_hit', 'validation_sample', 'dropped')),
-                filepath TEXT,
-                max_bio_label TEXT,
-                max_bio_logit REAL,
-                noise_logits TEXT,
+                retention_reason TEXT NOT NULL CHECK(retention_reason IN ('bio_hit', 'dropped')),
+                max_nz_bird_common_name TEXT,
+                max_nz_bird_scientific_name TEXT,
+                max_nz_bird_logit REAL,
                 max_perch_label TEXT,
                 max_perch_logit REAL,
+                excluded_label_scores TEXT,
                 nz_bird_logits TEXT,
-                gate_mode TEXT,
-                gate_threshold REAL,
+                gate_mode TEXT NOT NULL,
+                gate_threshold REAL NOT NULL,
                 gate_trigger_count INTEGER NOT NULL DEFAULT 0,
                 retained_clip_count INTEGER NOT NULL DEFAULT 0,
-                margin_gate_scores TEXT,
+                margin_gate_scores TEXT NOT NULL,
                 sync_status TEXT NOT NULL DEFAULT 'pending' CHECK(sync_status IN ('pending', 'in_flight', 'synced', 'failed')),
                 created_at_utc TEXT NOT NULL,
                 synced_at_utc TEXT
             );
             """
         )
-        ensure_column(conn, "buffer_events", "gate_mode", "gate_mode TEXT")
-        ensure_column(conn, "buffer_events", "gate_threshold", "gate_threshold REAL")
-        ensure_column(
-            conn,
-            "buffer_events",
-            "gate_trigger_count",
-            "gate_trigger_count INTEGER NOT NULL DEFAULT 0",
-        )
-        ensure_column(
-            conn,
-            "buffer_events",
-            "retained_clip_count",
-            "retained_clip_count INTEGER NOT NULL DEFAULT 0",
-        )
-        ensure_column(conn, "buffer_events", "margin_gate_scores", "margin_gate_scores TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_buffer_events_sync_status ON buffer_events(sync_status);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_buffer_events_timestamp ON buffer_events(timestamp_utc);")
         conn.execute(
@@ -94,7 +84,7 @@ def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
                 clip_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 buffer_id INTEGER NOT NULL,
                 retention_index INTEGER NOT NULL,
-                retention_reason TEXT NOT NULL CHECK(retention_reason IN ('bio_hit', 'validation_sample')),
+                retention_reason TEXT NOT NULL CHECK(retention_reason IN ('bio_hit')),
                 filepath TEXT NOT NULL,
                 start_segment_index INTEGER NOT NULL,
                 end_segment_index INTEGER NOT NULL,
@@ -132,6 +122,10 @@ def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
         set_metadata(conn, "embedding_dim", embedding_dim)
         set_metadata(conn, "vector_storage_mode", vector_storage.mode)
         set_metadata(conn, "vector_table", vector_storage.table_name)
+        set_metadata(conn, "schema_version", 2)
+        set_metadata(conn, "phase1_revision", "margin_variable_retention_v1")
+        set_metadata(conn, "gate_mode", str(config.get("bio_gate_mode", "nz_bird_margin")))
+        set_metadata(conn, "gate_threshold", str(config.get("bio_margin_threshold", "0.55")))
         conn.commit()
 
     return db_path

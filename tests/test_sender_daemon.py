@@ -35,6 +35,11 @@ class SenderDaemonTest(unittest.TestCase):
         self.assertEqual(detections[0]["retained_clip_count"], 1)
         self.assertEqual(len(detections[0]["retained_audio_clips"]), 1)
         self.assertEqual(detections[0]["retained_audio_clips"][0]["duration_s"], 5.0)
+        self.assertEqual(detections[0]["max_nz_bird_common_name"], "Nova Bird")
+        self.assertEqual(detections[0]["perch_frame_count"], 3)
+        self.assertNotIn("filepath", detections[0])
+        self.assertNotIn("max_bio_label", detections[0])
+        self.assertNotIn("noise_logits", detections[0])
         self.assertTrue(config_exists)
 
     def test_dry_run_does_not_update_sync_state(self) -> None:
@@ -124,35 +129,48 @@ class SenderDaemonTest(unittest.TestCase):
                 load_sqlite_vec(conn)
             with conn:
                 for index in range(buffer_count):
+                    has_clip = index % 2 == 0
                     cursor = conn.execute(
                         """
                         INSERT INTO buffer_events(
-                            device_id, timestamp_utc, audio_saved, retention_reason,
-                            filepath, max_bio_label, max_bio_logit, noise_logits,
-                            max_perch_label, max_perch_logit, nz_bird_logits,
-                            gate_mode, gate_threshold, gate_trigger_count,
+                            device_id, source_file, file_buffer_index, timestamp_utc,
+                            inference_buffer_seconds, perch_window_seconds, perch_frame_count,
+                            audio_saved, retention_reason, max_nz_bird_common_name,
+                            max_nz_bird_scientific_name, max_nz_bird_logit,
+                            max_perch_label, max_perch_logit, excluded_label_scores,
+                            nz_bird_logits, gate_mode, gate_threshold, gate_trigger_count,
                             retained_clip_count, margin_gate_scores,
                             sync_status, created_at_utc
                         )
-                        VALUES ('pi_01', ?, 1, 'bio_hit', 'example.flac',
-                                'Animal', 3.5, '[]', 'Animal', 3.5, '[]',
-                                'nz_bird_margin', 0.55, 1, 1, '[]',
+                        VALUES ('pi_01', 'fixture.wav', ?, ?, 15.0, 5.0, 3,
+                                ?, ?, 'Nova Bird', 'Aves nova', 3.5,
+                                'Aves nova', 3.5, '[]', '[]',
+                                'nz_bird_margin', 0.55, ?, ?, '[]',
                                 'pending', ?);
                         """,
-                        (now, now),
+                        (
+                            index,
+                            now,
+                            int(has_clip),
+                            "bio_hit" if has_clip else "dropped",
+                            1 if has_clip else 0,
+                            1 if has_clip else 0,
+                            now,
+                        ),
                     )
                     buffer_id = int(cursor.lastrowid)
-                    conn.execute(
-                        """
-                        INSERT INTO retained_audio_clips(
-                            buffer_id, retention_index, retention_reason, filepath,
-                            start_segment_index, end_segment_index, start_offset_s,
-                            end_offset_s, duration_s, triggered_frame_count, created_at_utc
+                    if has_clip:
+                        conn.execute(
+                            """
+                            INSERT INTO retained_audio_clips(
+                                buffer_id, retention_index, retention_reason, filepath,
+                                start_segment_index, end_segment_index, start_offset_s,
+                                end_offset_s, duration_s, triggered_frame_count, created_at_utc
+                            )
+                            VALUES (?, 1, 'bio_hit', 'example_seg0-0_5s.flac', 0, 0, 0.0, 5.0, 5.0, 1, ?);
+                            """,
+                            (buffer_id, now),
                         )
-                        VALUES (?, 1, 'bio_hit', 'example_seg0-0_5s.flac', 0, 0, 0.0, 5.0, 5.0, 1, ?);
-                        """,
-                        (buffer_id, now),
-                    )
                     for segment_index in range(3):
                         cursor = conn.execute(
                             "INSERT INTO embedding_segments(buffer_id, segment_index) VALUES (?, ?);",

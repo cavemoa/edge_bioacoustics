@@ -73,10 +73,60 @@ class IngestionApiTest(unittest.TestCase):
                 content=msgpack.packb(bad_embedding, use_bin_type=True),
                 headers={"X-API-Key": "test-key"},
             )
+            unexpected_field = _payload(buffer_ids=[2])
+            unexpected_field["detections"][0]["filepath"] = "legacy.flac"
+            unexpected_field_response = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(unexpected_field, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
 
         self.assertEqual(bad_msgpack.status_code, 422)
         self.assertEqual(missing_fields.status_code, 422)
         self.assertEqual(bad_embedding_response.status_code, 422)
+        self.assertEqual(unexpected_field_response.status_code, 422)
+
+    def test_bad_retained_clip_metadata_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path, _ = self._write_config(Path(tmp))
+            client = TestClient(create_app(config_path))
+
+            payload = _payload(buffer_ids=[1])
+            payload["detections"][0]["retained_clip_count"] = 2
+            count_mismatch = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+
+            payload = _payload(buffer_ids=[2])
+            payload["detections"][0]["audio_saved"] = 0
+            audio_mismatch = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+
+            payload = _payload(buffer_ids=[3])
+            payload["detections"][0]["retained_audio_clips"][0]["end_segment_index"] = 4
+            bad_span = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+
+            payload = _payload(buffer_ids=[4])
+            payload["detections"][0]["retained_audio_clips"][0]["duration_s"] = 6.0
+            bad_duration = client.post(
+                "/ingest_batch",
+                content=msgpack.packb(payload, use_bin_type=True),
+                headers={"X-API-Key": "test-key"},
+            )
+
+        self.assertEqual(count_mismatch.status_code, 422)
+        self.assertEqual(audio_mismatch.status_code, 422)
+        self.assertEqual(bad_span.status_code, 422)
+        self.assertEqual(bad_duration.status_code, 422)
 
     def test_device_allowlist_is_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -151,15 +201,20 @@ def _detection(buffer_id: int, timestamp_utc: str) -> dict:
     embedding = np.zeros(1536, dtype=np.float32).tobytes()
     return {
         "buffer_id": buffer_id,
+        "source_file": "fixture.wav",
+        "file_buffer_index": buffer_id,
         "timestamp_utc": timestamp_utc,
+        "inference_buffer_seconds": 15.0,
+        "perch_window_seconds": 5.0,
+        "perch_frame_count": 3,
         "audio_saved": 1,
         "retention_reason": "bio_hit",
-        "filepath": "edge_node_mock/data/retained_audio/example.flac",
-        "max_bio_label": "Animal",
-        "max_bio_logit": 4.25,
-        "noise_logits": "[]",
-        "max_perch_label": "Animal",
+        "max_nz_bird_common_name": "Nova Bird",
+        "max_nz_bird_scientific_name": "Aves nova",
+        "max_nz_bird_logit": 4.25,
+        "max_perch_label": "Aves nova",
         "max_perch_logit": 4.25,
+        "excluded_label_scores": "[]",
         "nz_bird_logits": "[]",
         "gate_mode": "nz_bird_margin",
         "gate_threshold": 0.55,

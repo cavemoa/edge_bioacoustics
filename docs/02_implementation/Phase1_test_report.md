@@ -1,5 +1,10 @@
 # Phase 1 Full Test Report
 
+> Legacy baseline: this report was generated from the earlier broad-label gate.
+> The active Phase 1 revision now uses the NZ-bird margin gate and variable
+> 5/10/15-second retained clips. Regenerate this report after the next six-night
+> revision run.
+
 Generated from:
 
 ```text

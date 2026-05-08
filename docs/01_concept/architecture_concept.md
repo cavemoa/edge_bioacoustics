@@ -66,9 +66,16 @@ Data is moved from the Edge to the Central Hub via a highly optimized, asynchron
     {
       "id": 1042,
       "timestamp": "2026-05-05T06:15:30",
-      "noise_scores": [0.01, 0.05],
-      "positive_scores": [0.89, 0.92],
-      "embedding": <Binary BLOB Data>
+      "gate_mode": "nz_bird_margin",
+      "margin_gate_scores": "[...]",
+      "retained_audio_clips": [
+        {"start_offset_s": 5.0, "end_offset_s": 10.0, "duration_s": 5.0}
+      ],
+      "embedding_segments": [
+        {"segment_index": 0, "embedding": <Binary BLOB Data>},
+        {"segment_index": 1, "embedding": <Binary BLOB Data>},
+        {"segment_index": 2, "embedding": <Binary BLOB Data>}
+      ]
     }
   ],
   "telemetry": {
@@ -133,7 +140,7 @@ This is your continuous, high-priority loop. It handles the actual listening and
     *   Pass the buffer to Perch 2.0 to generate embeddings and logits.
     *   Gate the results: compare the strongest NZ bird label against the strongest excluded label using a margin threshold.
     *   If positive: compress the triggered 5/10/15-second span to `.flac` and save it to the local SD card/USB drive.
-    *   Insert margin scores, retained clip metadata, timestamp, file path, and raw binary embeddings into the local `sqlite-vector` database with `sync_status = 'pending'`.
+    *   Insert margin scores, retained clip metadata, timestamp, and raw binary embeddings into the local `sqlite-vector` database with `sync_status = 'pending'`.
 
 #### **2. `sender_daemon.py` (The Transport & Telemetry Worker)**
 This script acts as your courier. It wakes up, gathers the data, checks the Pi's health, and ships it all to the server.

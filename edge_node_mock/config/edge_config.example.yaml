@@ -27,30 +27,11 @@ excluded_margin_labels:
   - Vehicle
 max_variable_buffer_frames: 3
 perch_window_seconds: 5.0
-# Legacy first-pass gate settings retained while notebooks and reports migrate.
-bio_threshold: 2.0
-noise_threshold: 5.0
-noise_labels:
-  - Water_tap_and_faucet
-  - Waves_and_surf
-  - Whispering
-  - Whoosh_and_swoosh_and_swish
-  - Wind
-  - Thunder
-  - Thunderstorm
-  - Rain
-  - Raindrop
-  - Ocean
-  - Drip
-  - Crackle
-biological_labels:
-  - Animal
-  - Chirp_and_tweet
-  - Crow
-  - Fowl
-  - Frog
-  - Gull_and_seagull
-  - Insect
-  - Livestock_and_farm_animals_and_working_animals
-  - Wild_animals
-validation_sample_interval: 100
+plot_style:
+  start_line_color: lime
+  end_line_color: red
+  clip_bar_color: lime
+  line_alpha: 0.75
+  clip_bar_alpha: 0.75
+  line_width: 1.6
+  clip_bar_height_fraction: 0.06

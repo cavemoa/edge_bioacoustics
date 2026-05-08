@@ -21,9 +21,12 @@ operational behavior.
 - Perch runs through the CPU TensorFlow Hub/Kaggle model handle on the desktop.
   Raspberry Pi feasibility, model caching, startup time, memory use, and
   possible model format changes still need hardware testing.
-- The biological/noise gate is a first-pass configurable logit threshold using
-  selected Perch labels. It is useful for proving the data path, but threshold
-  tuning and false-positive/false-negative analysis remain open.
+- The active gate is now the NZ-bird margin gate, not the earlier broad
+  biological/noise threshold. It has performed well in manually reviewed
+  reference-file tests, but field validation and real false-negative review are
+  still required.
+- Variable retained clips are limited to spans inside the current 15-second
+  inference event. Cross-buffer retained clip merging is deferred.
 - Telemetry is desktop mock telemetry. CPU temperature, battery voltage, solar
   current, and I2C sensor reads are not yet real field values.
 - Transport is localhost HTTP. Tailscale, 4G behavior, link drops, latency,

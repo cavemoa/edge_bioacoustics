@@ -1,4 +1,4 @@
-edge_config_path: edge_node_mock/config/edge_config.local.yaml
+edge_config_path: edge_node_mock/config/edge_config.example.yaml
 audio_file: /data/petrel_acoustics/raw_audio/doc_ar4/rapanui_AR4_june_2023/20230527/20230527_213004.wav
 section_start_seconds: 300.0
 section_end_seconds: 700.0

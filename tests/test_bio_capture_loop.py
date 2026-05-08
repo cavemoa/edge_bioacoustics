@@ -3,18 +3,24 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
 import soundfile as sf
 
 from edge_node_mock.src.bio_capture_loop import (
+    AudioBuffer,
+    decide_buffer,
+    iter_audio_buffers,
+    save_retained_audio,
+)
+from edge_node_mock.src.gate_logic import (
     FrameScores,
+    RetentionClip,
     build_label_index,
     build_margin_label_indexes,
     build_variable_retention_buffers,
-    decide_buffer,
-    iter_audio_buffers,
     score_frames,
 )
 
@@ -43,24 +49,19 @@ class BioCaptureLoopTest(unittest.TestCase):
         frame_scores = score_frames(
             logits,
             perch_labels=perch_labels,
-            noise_label_indexes={"Water": 1},
-            bio_label_indexes={},
             nz_label_indexes={0: _Label("Nova Bird", "Aves nova")},
             excluded_margin_label_indexes=build_margin_label_indexes(perch_labels, ["Water", "Train", "Vehicle"]),
             bio_margin_threshold=0.55,
         )
         decision = decide_buffer(
             frame_scores,
-            bio_threshold=0.55,
-            noise_threshold=0.0,
-            validation_sample_interval=100,
-            dropped_buffer_count=0,
+            gate_threshold=0.55,
             max_variable_buffer_frames=3,
         )
 
         self.assertEqual(decision.retention_reason, "bio_hit")
-        self.assertEqual(decision.max_bio_label, "Nova Bird")
-        self.assertAlmostEqual(decision.max_bio_logit, 7.0, places=5)
+        self.assertEqual(decision.max_nz_bird_common_name, "Nova Bird")
+        self.assertAlmostEqual(decision.max_nz_bird_logit, 7.0, places=5)
         self.assertEqual(decision.gate_trigger_count, 2)
         self.assertEqual(decision.retained_clip_count, 1)
         self.assertEqual(decision.retained_clips[0].duration_s, 10.0)
@@ -97,24 +98,51 @@ class BioCaptureLoopTest(unittest.TestCase):
         self.assertTrue(frame_scores[0].margin_gate)
         self.assertTrue(frame_scores[0].frame_bio_gate)
 
-    def test_validation_sample_cadence_applies_to_dropped_buffers(self) -> None:
+    def test_dropped_margin_buffers_are_dropped(self) -> None:
         frame_scores = [
             _FrameScore(segment_index=0, max_noise_label="Rain", max_noise_logit=6.0, max_bio_label="Animal", max_bio_logit=1.0),
             _FrameScore(segment_index=1, max_noise_label="Rain", max_noise_logit=5.5, max_bio_label="Animal", max_bio_logit=1.2),
             _FrameScore(segment_index=2, max_noise_label="Rain", max_noise_logit=5.1, max_bio_label="Animal", max_bio_logit=1.1),
         ]
 
-        decision = decide_buffer(
-            frame_scores,
-            bio_threshold=3.0,
-            noise_threshold=5.0,
-            validation_sample_interval=2,
-            dropped_buffer_count=1,
-            gate_mode="legacy_threshold",
-        )
+        decision = decide_buffer(frame_scores, gate_threshold=0.55)
 
-        self.assertEqual(decision.retention_reason, "validation_sample")
-        self.assertTrue(decision.audio_saved)
+        self.assertEqual(decision.retention_reason, "dropped")
+        self.assertFalse(decision.audio_saved)
+
+    def test_saved_retained_audio_duration_matches_clip_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            buffer = AudioBuffer(
+                source_file=root / "20260101_000000.wav",
+                file_buffer_index=2,
+                timestamp_utc=datetime(2026, 1, 1, tzinfo=UTC),
+                source_audio=np.zeros(32000 * 15, dtype=np.float32),
+                source_sample_rate=32000,
+                perch_audio=np.zeros(32000 * 15, dtype=np.float32),
+                perch_sample_rate=32000,
+            )
+
+            for frame_count in (1, 2, 3):
+                clip = RetentionClip(
+                    retention_index=frame_count,
+                    retention_reason="bio_hit",
+                    filepath=None,
+                    start_segment_index=0,
+                    end_segment_index=frame_count - 1,
+                    start_offset_s=0.0,
+                    end_offset_s=frame_count * 5.0,
+                    duration_s=frame_count * 5.0,
+                    triggered_frame_count=frame_count,
+                )
+
+                filepath = Path(save_retained_audio(buffer, root / "retained", "pi_01", clip))
+                info = sf.info(filepath)
+
+                self.assertEqual(info.samplerate, 32000)
+                self.assertAlmostEqual(info.duration, clip.duration_s, places=3)
+                self.assertIn(f"seg0-{frame_count - 1}", filepath.name)
+                self.assertIn(f"{clip.duration_s:g}s", filepath.name)
 
     def test_variable_retention_buffers_group_consecutive_frames(self) -> None:
         scores = [
@@ -193,6 +221,13 @@ class _FrameScore:
         self.max_perch_label = max_noise_label
         self.max_perch_logit = max_noise_logit
         self.top_nz_birds = []
+        self.top_nz_common_name = max_bio_label
+        self.top_nz_scientific_name = None
+        self.top_nz_logit = max_bio_logit
+        self.top_excluded_label = max_noise_label
+        self.top_excluded_logit = max_noise_logit
+        self.excluded_top_label_gate = False
+        self.frame_bio_gate = False
 
 
 def _margin_score(segment_index: int, active: bool) -> FrameScores:
@@ -200,8 +235,8 @@ def _margin_score(segment_index: int, active: bool) -> FrameScores:
         segment_index=segment_index,
         max_noise_label="Water",
         max_noise_logit=5.0,
-        max_bio_label="Nova Bird",
-        max_bio_logit=6.0,
+        max_nz_bird_common_name="Nova Bird",
+        max_nz_bird_logit=6.0,
         max_perch_label="Aves nova",
         max_perch_logit=6.0,
         top_nz_birds=[],

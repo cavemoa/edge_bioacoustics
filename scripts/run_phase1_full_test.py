@@ -45,16 +45,15 @@ from central_hub_mock.src.watchdog_alert import check_watchdog
 from edge_node_mock.src.bio_capture_loop import (
     BufferDecision,
     active_vector_storage,
-    build_label_index,
-    build_margin_label_indexes,
     decide_buffer,
     insert_buffer_event,
     iter_audio_buffers,
     load_sqlite_vec,
     run_perch_inference,
     save_retained_audio,
-    score_frames,
 )
+from edge_node_mock.src.gate_config import validate_margin_gate_config
+from edge_node_mock.src.gate_logic import build_margin_label_indexes, score_frames
 from edge_node_mock.src.init_edge_db import init_edge_db
 from edge_node_mock.src.inspect_perch_model import _load_model, load_nz_bird_labels, load_perch_labels
 from edge_node_mock.src.sender_daemon import count_pending, send_pending_batch
@@ -71,19 +70,19 @@ BUFFER_FIELDNAMES = [
     "perch_sample_rate",
     "retention_reason",
     "audio_saved",
-    "filepath",
     "gate_mode",
     "gate_threshold",
     "gate_trigger_count",
     "retained_clip_count",
     "retained_seconds",
     "retained_clip_durations_json",
-    "max_bio_label",
-    "max_bio_logit",
+    "max_nz_bird_common_name",
+    "max_nz_bird_scientific_name",
+    "max_nz_bird_logit",
     "max_perch_label",
     "max_perch_logit",
-    "noise_dominant_frame_count",
-    "bio_gate_active",
+    "excluded_top_label_veto_frame_count",
+    "frame_bio_gate_buffer_active",
     "inference_seconds",
     "db_write_seconds",
     "audio_save_seconds",
@@ -97,24 +96,18 @@ FRAME_FIELDNAMES = [
     "file_buffer_index",
     "timestamp_utc",
     "segment_index",
-    "max_noise_label",
-    "max_noise_logit",
-    "noise_dominates",
     "top_excluded_label",
     "top_excluded_logit",
     "excluded_top_label_gate",
-    "max_bio_label",
-    "max_bio_logit",
+    "top_nz_common_name",
+    "top_nz_scientific_name",
     "top_nz_logit",
     "nz_over_excluded_margin",
     "bio_margin_threshold",
     "margin_gate",
-    "bio_gate_active",
+    "frame_bio_gate",
     "max_perch_label",
     "max_perch_logit",
-    "nz_rank1_common_name",
-    "nz_rank1_scientific_name",
-    "nz_rank1_logit",
     "nz_top3_json",
 ]
 
@@ -127,6 +120,22 @@ GATE_EVENT_FIELDNAMES = [
     "start_seconds",
     "end_seconds",
     "duration_seconds",
+]
+
+RETAINED_CLIP_FIELDNAMES = [
+    "night",
+    "source_file",
+    "global_buffer_index",
+    "file_buffer_index",
+    "retention_index",
+    "retention_reason",
+    "filepath",
+    "start_segment_index",
+    "end_segment_index",
+    "start_seconds",
+    "end_seconds",
+    "duration_seconds",
+    "triggered_frame_count",
 ]
 
 
@@ -154,15 +163,14 @@ class AudioPlan:
 @dataclass
 class AggregateMetrics:
     retention_reasons: Counter[str] = field(default_factory=Counter)
-    max_bio_labels: Counter[str] = field(default_factory=Counter)
-    bio_hit_labels: Counter[str] = field(default_factory=Counter)
+    max_nz_bird_candidates: Counter[str] = field(default_factory=Counter)
+    retained_nz_bird_candidates: Counter[str] = field(default_factory=Counter)
     max_perch_labels: Counter[str] = field(default_factory=Counter)
-    noise_labels: Counter[str] = field(default_factory=Counter)
-    noise_dominant_labels: Counter[str] = field(default_factory=Counter)
+    excluded_label_evidence_labels: Counter[str] = field(default_factory=Counter)
+    excluded_top_label_veto_labels: Counter[str] = field(default_factory=Counter)
     nz_rank1_species: Counter[str] = field(default_factory=Counter)
     nz_top3_species: Counter[str] = field(default_factory=Counter)
     bio_gate_frame_labels: Counter[str] = field(default_factory=Counter)
-    top_excluded_veto_labels: Counter[str] = field(default_factory=Counter)
     retained_clip_durations: Counter[str] = field(default_factory=Counter)
     nz_species_max_logit: defaultdict[str, float] = field(
         default_factory=lambda: defaultdict(lambda: float("-inf"))
@@ -173,9 +181,8 @@ class AggregateMetrics:
     retained_seconds: float = 0.0
     bio_gate_buffers: int = 0
     bio_gate_frames: int = 0
-    validation_gate_buffers: int = 0
-    noise_dominant_buffers: int = 0
-    noise_dominant_frames: int = 0
+    excluded_top_label_veto_buffers: int = 0
+    excluded_top_label_veto_frames: int = 0
     inference_seconds: float = 0.0
     db_write_seconds: float = 0.0
     audio_save_seconds: float = 0.0
@@ -301,18 +308,16 @@ def metrics_summary(metrics: AggregateMetrics, *, audio_seconds: float) -> dict[
         "retained_seconds": metrics.retained_seconds,
         "bio_gate_buffers": metrics.bio_gate_buffers,
         "bio_gate_frames": metrics.bio_gate_frames,
-        "validation_gate_buffers": metrics.validation_gate_buffers,
-        "noise_dominant_buffers": metrics.noise_dominant_buffers,
-        "noise_dominant_frames": metrics.noise_dominant_frames,
+        "excluded_top_label_veto_buffers": metrics.excluded_top_label_veto_buffers,
+        "excluded_top_label_veto_frames": metrics.excluded_top_label_veto_frames,
         "retention_reasons": counter_payload(metrics.retention_reasons),
-        "max_bio_labels": counter_payload(metrics.max_bio_labels, limit=30),
-        "bio_hit_labels": counter_payload(metrics.bio_hit_labels, limit=30),
+        "max_nz_bird_candidates": counter_payload(metrics.max_nz_bird_candidates, limit=30),
+        "retained_nz_bird_candidates": counter_payload(metrics.retained_nz_bird_candidates, limit=30),
         "bio_gate_frame_labels": counter_payload(metrics.bio_gate_frame_labels, limit=30),
-        "top_excluded_veto_labels": counter_payload(metrics.top_excluded_veto_labels, limit=30),
+        "excluded_top_label_veto_labels": counter_payload(metrics.excluded_top_label_veto_labels, limit=30),
         "retained_clip_durations": counter_payload(metrics.retained_clip_durations),
         "max_perch_labels": counter_payload(metrics.max_perch_labels, limit=30),
-        "noise_labels": counter_payload(metrics.noise_labels, limit=30),
-        "noise_dominant_labels": counter_payload(metrics.noise_dominant_labels, limit=30),
+        "excluded_label_evidence_labels": counter_payload(metrics.excluded_label_evidence_labels, limit=30),
         "nz_rank1_species": counter_payload(metrics.nz_rank1_species, limit=30),
         "nz_top3_species": counter_payload(metrics.nz_top3_species, limit=30),
         "nz_species_max_logits": max_logit_payload(metrics.nz_species_max_logit),
@@ -332,8 +337,6 @@ def update_metrics_from_buffer(
     *,
     decision: BufferDecision,
     frame_scores: list[Any],
-    noise_threshold: float,
-    bio_threshold: float,
     inference_seconds: float,
     db_write_seconds: float,
     audio_save_seconds: float,
@@ -349,8 +352,8 @@ def update_metrics_from_buffer(
     metrics.buffer_total_seconds += total_buffer_seconds
     metrics.inference_samples.append(inference_seconds)
 
-    if decision.max_bio_label:
-        metrics.max_bio_labels[decision.max_bio_label] += 1
+    if decision.max_nz_bird_common_name:
+        metrics.max_nz_bird_candidates[decision.max_nz_bird_common_name] += 1
     if decision.audio_saved:
         metrics.retained_audio += decision.retained_clip_count or 1
     for clip in decision.retained_clips:
@@ -358,23 +361,19 @@ def update_metrics_from_buffer(
         metrics.retained_clip_durations[f"{clip.duration_s:g}s"] += 1
     if decision.retention_reason == "bio_hit":
         metrics.bio_gate_buffers += 1
-        if decision.max_bio_label:
-            metrics.bio_hit_labels[decision.max_bio_label] += 1
-    if decision.retention_reason == "validation_sample":
-        metrics.validation_gate_buffers += 1
+        if decision.max_nz_bird_common_name:
+            metrics.retained_nz_bird_candidates[decision.max_nz_bird_common_name] += 1
 
-    noise_dominant_frame_count = 0
+    excluded_top_label_veto_frame_count = 0
     for score in frame_scores:
-        if score.max_noise_label:
-            metrics.noise_labels[score.max_noise_label] += 1
-        noise_dominates = is_noise_dominant(score, noise_threshold=noise_threshold)
-        if noise_dominates:
-            noise_dominant_frame_count += 1
-            metrics.noise_dominant_frames += 1
-            if score.max_noise_label:
-                metrics.noise_dominant_labels[score.max_noise_label] += 1
+        if score.top_excluded_label:
+            metrics.excluded_label_evidence_labels[score.top_excluded_label] += 1
+        excluded_top_label_veto = is_excluded_top_label_veto(score)
+        if excluded_top_label_veto:
+            excluded_top_label_veto_frame_count += 1
+            metrics.excluded_top_label_veto_frames += 1
         if getattr(score, "excluded_top_label_gate", False) and getattr(score, "top_excluded_label", None):
-            metrics.top_excluded_veto_labels[score.top_excluded_label] += 1
+            metrics.excluded_top_label_veto_labels[score.top_excluded_label] += 1
 
         if score.top_nz_birds:
             rank1 = score.top_nz_birds[0]
@@ -391,23 +390,17 @@ def update_metrics_from_buffer(
         if getattr(score, "nz_over_excluded_margin", None) is not None:
             metrics.margin_samples.append(float(score.nz_over_excluded_margin))
 
-        if getattr(score, "frame_bio_gate", False) and score.max_bio_label:
+        if getattr(score, "frame_bio_gate", False) and score.top_nz_common_name:
             metrics.bio_gate_frames += 1
-            metrics.bio_gate_frame_labels[score.max_bio_label] += 1
+            metrics.bio_gate_frame_labels[score.top_nz_common_name] += 1
 
-    if noise_dominant_frame_count:
-        metrics.noise_dominant_buffers += 1
-    return noise_dominant_frame_count
+    if excluded_top_label_veto_frame_count:
+        metrics.excluded_top_label_veto_buffers += 1
+    return excluded_top_label_veto_frame_count
 
 
-def is_noise_dominant(score: Any, *, noise_threshold: float) -> bool:
-    if getattr(score, "excluded_top_label_gate", False):
-        return True
-    return bool(
-        score.max_noise_logit is not None
-        and score.max_noise_logit >= noise_threshold
-        and (score.max_bio_logit is None or score.max_noise_logit > score.max_bio_logit)
-    )
+def is_excluded_top_label_veto(score: Any) -> bool:
+    return bool(getattr(score, "excluded_top_label_gate", False))
 
 
 def species_label(bird: dict[str, Any]) -> str:
@@ -416,6 +409,31 @@ def species_label(bird: dict[str, Any]) -> str:
 
 def write_row(writer: csv.DictWriter, row: dict[str, Any]) -> None:
     writer.writerow({key: row.get(key) for key in writer.fieldnames or []})
+
+
+def default_plot_style() -> dict[str, Any]:
+    return {
+        "start_line_color": "lime",
+        "end_line_color": "red",
+        "clip_bar_color": "lime",
+        "line_alpha": 0.75,
+        "clip_bar_alpha": 0.75,
+        "line_width": 1.6,
+        "clip_bar_height_fraction": 0.06,
+    }
+
+
+def resolve_plot_style(config: dict[str, Any]) -> dict[str, Any]:
+    style = default_plot_style()
+    configured = config.get("plot_style", {}) or {}
+    if not isinstance(configured, dict):
+        raise ValueError("plot_style must be a mapping")
+    style.update(configured)
+    style["line_alpha"] = float(style["line_alpha"])
+    style["clip_bar_alpha"] = float(style["clip_bar_alpha"])
+    style["line_width"] = float(style["line_width"])
+    style["clip_bar_height_fraction"] = float(style["clip_bar_height_fraction"])
+    return style
 
 
 def hz_to_mel(hz: float | np.ndarray) -> float | np.ndarray:
@@ -498,6 +516,7 @@ def plot_gate_events_for_file(
     *,
     output_path: Path,
     show: bool,
+    plot_style: dict[str, Any],
 ) -> None:
     import matplotlib.pyplot as plt
     import soundfile as sf
@@ -538,14 +557,66 @@ def plot_gate_events_for_file(
     for event in events:
         start_minute = int(event.start_seconds // 60)
         end_minute = int(max(event.end_seconds - 1e-9, 0.0) // 60)
+        for minute_index in range(start_minute, end_minute + 1):
+            if not 0 <= minute_index < minute_count:
+                continue
+            minute_start = minute_index * 60.0
+            minute_end = minute_start + 60.0
+            bar_start = max(event.start_seconds, minute_start) - minute_start
+            bar_end = min(event.end_seconds, minute_end) - minute_start
+            if bar_end <= bar_start:
+                continue
+            y_height = max(
+                1.0,
+                axes_list[minute_index].get_ylim()[1] * plot_style["clip_bar_height_fraction"],
+            )
+            axes_list[minute_index].broken_barh(
+                [(bar_start, bar_end - bar_start)],
+                (0, y_height),
+                facecolors=plot_style["clip_bar_color"],
+                alpha=plot_style["clip_bar_alpha"],
+                edgecolors="none",
+            )
         if 0 <= start_minute < minute_count:
-            axes_list[start_minute].axvline(event.start_seconds % 60.0, color="lime", linewidth=1.6)
+            axes_list[start_minute].axvline(
+                event.start_seconds % 60.0,
+                color=plot_style["start_line_color"],
+                alpha=plot_style["line_alpha"],
+                linewidth=plot_style["line_width"],
+            )
         if 0 <= end_minute < minute_count:
-            axes_list[end_minute].axvline(event.end_seconds % 60.0, color="red", linewidth=1.6)
+            axes_list[end_minute].axvline(
+                event.end_seconds % 60.0,
+                color=plot_style["end_line_color"],
+                alpha=plot_style["line_alpha"],
+                linewidth=plot_style["line_width"],
+            )
 
     handles = [
-        plt.Line2D([0], [0], color="lime", linewidth=1.6, label="bio gate start"),
-        plt.Line2D([0], [0], color="red", linewidth=1.6, label="bio gate end"),
+        plt.Line2D(
+            [0],
+            [0],
+            color=plot_style["start_line_color"],
+            alpha=plot_style["line_alpha"],
+            linewidth=plot_style["line_width"],
+            label="retained clip start",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            color=plot_style["end_line_color"],
+            alpha=plot_style["line_alpha"],
+            linewidth=plot_style["line_width"],
+            label="retained clip end",
+        ),
+        plt.Rectangle(
+            (0, 0),
+            1,
+            1,
+            facecolor=plot_style["clip_bar_color"],
+            alpha=plot_style["clip_bar_alpha"],
+            label="saved clip span",
+        ),
     ]
     fig.suptitle(f"{audio_file.name} bio-gate retained spans", fontsize=12)
     axes_list[0].legend(handles=handles, loc="upper right")
@@ -564,6 +635,7 @@ def write_gate_plots(
     output_dir: Path,
     raw_audio_root: Path,
     show: bool,
+    plot_style: dict[str, Any],
 ) -> list[str]:
     plot_paths: list[str] = []
     plot_root = output_dir / "gate_plots"
@@ -577,7 +649,7 @@ def write_gate_plots(
         except ValueError:
             relative_parent = Path(audio_file.parent.name)
         output_path = plot_root / relative_parent / f"{audio_file.stem}_gate_plot.png"
-        plot_gate_events_for_file(audio_file, events, output_path=output_path, show=show)
+        plot_gate_events_for_file(audio_file, events, output_path=output_path, show=show, plot_style=plot_style)
         plot_paths.append(str(output_path))
     return plot_paths
 
@@ -705,6 +777,8 @@ def sync_pending_rows(
 def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
     started_wall = time.perf_counter()
     run_started_at = utc_now_string()
+    if args.skip_audio_save and args.sync_to_hub:
+        raise ValueError("--skip-audio-save cannot be combined with --sync-to-hub because hub validation requires retained clip metadata.")
 
     output_dir = default_output_dir() if args.output_dir is None else resolve_repo_path(args.output_dir)
     existing_outputs = [
@@ -714,6 +788,7 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
         output_dir / "buffer_metrics.csv",
         output_dir / "frame_metrics.csv",
         output_dir / "gate_plot_events.csv",
+        output_dir / "retained_clips.csv",
     ]
     if not args.reset_output and any(path.exists() for path in existing_outputs):
         raise RuntimeError(
@@ -727,6 +802,7 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
     buffer_csv_path = output_dir / "buffer_metrics.csv"
     frame_csv_path = output_dir / "frame_metrics.csv"
     gate_event_csv_path = output_dir / "gate_plot_events.csv"
+    retained_clip_csv_path = output_dir / "retained_clips.csv"
     metrics_path = output_dir / "phase1_full_test_metrics.json"
 
     base_config = load_config(args.edge_config)
@@ -763,6 +839,7 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
             "include_partial_final_buffer": include_partial,
         }
     )
+    plot_style = resolve_plot_style(edge_config)
 
     hub_config_path: Path | None = None
     hub_config: dict[str, Any] | None = None
@@ -785,20 +862,11 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
     edge_db_path = init_edge_db(edge_config_path, reset=True)
 
     perch_labels = load_perch_labels(resolve_repo_path(edge_config["perch_label_path"]))
+    gate_config = validate_margin_gate_config(edge_config, perch_labels=perch_labels)
     nz_labels = load_nz_bird_labels(resolve_repo_path(edge_config["nz_bird_label_path"]), perch_labels)
-    noise_label_indexes = build_label_index(
-        perch_labels,
-        list(edge_config.get("noise_labels", [])),
-        group_name="noise_labels",
-    )
-    bio_label_indexes = build_label_index(
-        perch_labels,
-        list(edge_config.get("biological_labels", [])),
-        group_name="biological_labels",
-    )
     excluded_margin_label_indexes = build_margin_label_indexes(
         perch_labels,
-        list(edge_config.get("excluded_margin_labels", ["Water", "Train", "Vehicle"])),
+        gate_config.excluded_margin_labels,
     )
 
     model_started = time.perf_counter()
@@ -809,7 +877,6 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
     night_metrics: list[dict[str, Any]] = []
     gate_events_by_file: dict[Path, list[GatePlotEvent]] = defaultdict(list)
     processed_audio_files: set[Path] = set()
-    dropped_buffer_count = 0
     global_buffer_index = 0
 
     with (
@@ -817,14 +884,17 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
         buffer_csv_path.open("w", newline="", encoding="utf-8") as buffer_file,
         frame_csv_path.open("w", newline="", encoding="utf-8") as frame_file,
         gate_event_csv_path.open("w", newline="", encoding="utf-8") as gate_event_file,
+        retained_clip_csv_path.open("w", newline="", encoding="utf-8") as retained_clip_file,
     ):
         conn.execute("PRAGMA foreign_keys=ON;")
         buffer_writer = csv.DictWriter(buffer_file, fieldnames=BUFFER_FIELDNAMES)
         frame_writer = csv.DictWriter(frame_file, fieldnames=FRAME_FIELDNAMES)
         gate_event_writer = csv.DictWriter(gate_event_file, fieldnames=GATE_EVENT_FIELDNAMES)
+        retained_clip_writer = csv.DictWriter(retained_clip_file, fieldnames=RETAINED_CLIP_FIELDNAMES)
         buffer_writer.writeheader()
         frame_writer.writeheader()
         gate_event_writer.writeheader()
+        retained_clip_writer.writeheader()
 
         for plan in progress_bar(plans, desc="Nights", unit="night"):
             night_config = dict(edge_config)
@@ -856,25 +926,17 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
                     frame_scores = score_frames(
                         logits,
                         perch_labels=perch_labels,
-                        noise_label_indexes=noise_label_indexes,
-                        bio_label_indexes=bio_label_indexes,
                         nz_label_indexes=nz_labels,
                         excluded_margin_label_indexes=excluded_margin_label_indexes,
-                        bio_margin_threshold=float(edge_config.get("bio_margin_threshold", edge_config["bio_threshold"])),
+                        bio_margin_threshold=gate_config.bio_margin_threshold,
                     )
                     decision = decide_buffer(
                         frame_scores,
-                        bio_threshold=float(edge_config.get("bio_margin_threshold", edge_config["bio_threshold"])),
-                        noise_threshold=float(edge_config.get("noise_threshold", 0.0)),
-                        validation_sample_interval=int(edge_config["validation_sample_interval"]),
-                        dropped_buffer_count=dropped_buffer_count,
-                        gate_mode=str(edge_config.get("bio_gate_mode", "nz_bird_margin")),
-                        max_variable_buffer_frames=int(edge_config.get("max_variable_buffer_frames", 3)),
-                        perch_window_seconds=float(edge_config.get("perch_window_seconds", 5.0)),
+                        gate_threshold=gate_config.bio_margin_threshold,
+                        gate_mode=gate_config.bio_gate_mode,
+                        max_variable_buffer_frames=gate_config.max_variable_buffer_frames,
+                        perch_window_seconds=gate_config.perch_window_seconds,
                     )
-                    if decision.retention_reason == "dropped":
-                        dropped_buffer_count += 1
-
                     raw_retained_clips = list(decision.retained_clips)
                     for clip in raw_retained_clips:
                         start_seconds = buffer.file_buffer_index * buffer_seconds + clip.start_offset_s
@@ -905,42 +967,34 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
 
                     audio_save_seconds = 0.0
                     if decision.audio_saved and args.skip_audio_save:
+                        metrics_decision = decision
                         decision = replace(
                             decision,
                             audio_saved=False,
-                            filepath=None,
                             retained_clips=[],
                             retained_clip_count=0,
                         )
                     elif decision.audio_saved:
                         audio_save_started = time.perf_counter()
-                        if decision.retained_clips:
-                            saved_clips = []
-                            for clip in decision.retained_clips:
-                                filepath = save_retained_audio(
-                                    buffer,
-                                    Path(str(edge_config["retained_audio_dir"])),
-                                    str(edge_config["device_id"]),
-                                    clip.retention_reason,
-                                    clip,
-                                )
-                                saved_clips.append(replace(clip, filepath=filepath))
-                            decision = replace(
-                                decision,
-                                filepath=None,
-                                retained_clips=saved_clips,
-                                retained_clip_count=len(saved_clips),
-                                audio_saved=bool(saved_clips),
-                            )
-                        else:
+                        saved_clips = []
+                        for clip in decision.retained_clips:
                             filepath = save_retained_audio(
                                 buffer,
                                 Path(str(edge_config["retained_audio_dir"])),
                                 str(edge_config["device_id"]),
-                                decision.retention_reason,
+                                clip,
                             )
-                            decision = replace(decision, filepath=filepath)
+                            saved_clips.append(replace(clip, filepath=filepath))
+                        decision = replace(
+                            decision,
+                            retained_clips=saved_clips,
+                            retained_clip_count=len(saved_clips),
+                            audio_saved=bool(saved_clips),
+                        )
+                        metrics_decision = decision
                         audio_save_seconds = time.perf_counter() - audio_save_started
+                    else:
+                        metrics_decision = decision
 
                     db_started = time.perf_counter()
                     insert_buffer_event(conn, config=edge_config, buffer=buffer, decision=decision, embeddings=embeddings)
@@ -948,12 +1002,10 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
                     db_write_seconds = time.perf_counter() - db_started
 
                     total_buffer_seconds = time.perf_counter() - buffer_started
-                    noise_dominant_frame_count = update_metrics_from_buffer(
+                    excluded_top_label_veto_frame_count = update_metrics_from_buffer(
                         night,
-                        decision=decision,
+                        decision=metrics_decision,
                         frame_scores=frame_scores,
-                        noise_threshold=float(edge_config["noise_threshold"]),
-                        bio_threshold=float(edge_config["bio_threshold"]),
                         inference_seconds=inference_seconds,
                         db_write_seconds=db_write_seconds,
                         audio_save_seconds=audio_save_seconds,
@@ -961,10 +1013,8 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
                     )
                     update_metrics_from_buffer(
                         totals,
-                        decision=decision,
+                        decision=metrics_decision,
                         frame_scores=frame_scores,
-                        noise_threshold=float(edge_config["noise_threshold"]),
-                        bio_threshold=float(edge_config["bio_threshold"]),
                         inference_seconds=inference_seconds,
                         db_write_seconds=db_write_seconds,
                         audio_save_seconds=audio_save_seconds,
@@ -983,22 +1033,22 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
                             "perch_sample_rate": buffer.perch_sample_rate,
                             "retention_reason": decision.retention_reason,
                             "audio_saved": int(decision.audio_saved and not args.skip_audio_save),
-                            "filepath": decision.filepath,
                             "gate_mode": decision.gate_mode,
                             "gate_threshold": decision.gate_threshold,
                             "gate_trigger_count": decision.gate_trigger_count,
-                            "retained_clip_count": decision.retained_clip_count,
-                            "retained_seconds": sum(clip.duration_s for clip in decision.retained_clips),
+                            "retained_clip_count": metrics_decision.retained_clip_count,
+                            "retained_seconds": sum(clip.duration_s for clip in metrics_decision.retained_clips),
                             "retained_clip_durations_json": json.dumps(
-                                [clip.duration_s for clip in decision.retained_clips],
+                                [clip.duration_s for clip in metrics_decision.retained_clips],
                                 separators=(",", ":"),
                             ),
-                            "max_bio_label": decision.max_bio_label,
-                            "max_bio_logit": decision.max_bio_logit,
+                            "max_nz_bird_common_name": decision.max_nz_bird_common_name,
+                            "max_nz_bird_scientific_name": decision.max_nz_bird_scientific_name,
+                            "max_nz_bird_logit": decision.max_nz_bird_logit,
                             "max_perch_label": decision.max_perch_label,
                             "max_perch_logit": decision.max_perch_logit,
-                            "noise_dominant_frame_count": noise_dominant_frame_count,
-                            "bio_gate_active": int(decision.retention_reason == "bio_hit"),
+                            "excluded_top_label_veto_frame_count": excluded_top_label_veto_frame_count,
+                            "frame_bio_gate_buffer_active": int(metrics_decision.retention_reason == "bio_hit"),
                             "inference_seconds": inference_seconds,
                             "db_write_seconds": db_write_seconds,
                             "audio_save_seconds": audio_save_seconds,
@@ -1007,7 +1057,6 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
                     )
 
                     for score in frame_scores:
-                        rank1 = score.top_nz_birds[0] if score.top_nz_birds else None
                         write_row(
                             frame_writer,
                             {
@@ -1017,27 +1066,41 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
                                 "file_buffer_index": buffer.file_buffer_index,
                                 "timestamp_utc": buffer.timestamp_utc.isoformat().replace("+00:00", "Z"),
                                 "segment_index": score.segment_index,
-                                "max_noise_label": score.max_noise_label,
-                                "max_noise_logit": score.max_noise_logit,
-                                "noise_dominates": int(
-                                    is_noise_dominant(score, noise_threshold=float(edge_config["noise_threshold"]))
-                                ),
                                 "top_excluded_label": score.top_excluded_label,
                                 "top_excluded_logit": score.top_excluded_logit,
                                 "excluded_top_label_gate": int(score.excluded_top_label_gate),
-                                "max_bio_label": score.max_bio_label,
-                                "max_bio_logit": score.max_bio_logit,
+                                "top_nz_common_name": score.top_nz_common_name,
+                                "top_nz_scientific_name": score.top_nz_scientific_name,
                                 "top_nz_logit": score.top_nz_logit,
                                 "nz_over_excluded_margin": score.nz_over_excluded_margin,
                                 "bio_margin_threshold": score.bio_margin_threshold,
                                 "margin_gate": int(score.margin_gate),
-                                "bio_gate_active": int(score.frame_bio_gate),
+                                "frame_bio_gate": int(score.frame_bio_gate),
                                 "max_perch_label": score.max_perch_label,
                                 "max_perch_logit": score.max_perch_logit,
-                                "nz_rank1_common_name": rank1["common_name"] if rank1 else None,
-                                "nz_rank1_scientific_name": rank1["scientific_name"] if rank1 else None,
-                                "nz_rank1_logit": rank1["logit"] if rank1 else None,
                                 "nz_top3_json": json.dumps(score.top_nz_birds, separators=(",", ":")),
+                            },
+                        )
+
+                    for clip in metrics_decision.retained_clips:
+                        start_seconds = buffer.file_buffer_index * buffer_seconds + clip.start_offset_s
+                        end_seconds = buffer.file_buffer_index * buffer_seconds + clip.end_offset_s
+                        write_row(
+                            retained_clip_writer,
+                            {
+                                "night": plan.night,
+                                "source_file": str(buffer.source_file),
+                                "global_buffer_index": global_buffer_index,
+                                "file_buffer_index": buffer.file_buffer_index,
+                                "retention_index": clip.retention_index,
+                                "retention_reason": clip.retention_reason,
+                                "filepath": clip.filepath,
+                                "start_segment_index": clip.start_segment_index,
+                                "end_segment_index": clip.end_segment_index,
+                                "start_seconds": start_seconds,
+                                "end_seconds": end_seconds,
+                                "duration_seconds": clip.duration_s,
+                                "triggered_frame_count": clip.triggered_frame_count,
                             },
                         )
 
@@ -1045,7 +1108,7 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
                     progress.set_postfix(
                         bio=night.retention_reasons.get("bio_hit", 0),
                         saved=night.retained_audio,
-                        noise=night.noise_dominant_buffers,
+                        veto=night.excluded_top_label_veto_buffers,
                     )
 
             night_metrics.append(
@@ -1068,6 +1131,7 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
             output_dir=output_dir,
             raw_audio_root=raw_audio_root,
             show=bool(args.show_gate_plots),
+            plot_style=plot_style,
         )
 
     sync_metrics: dict[str, Any] = {"enabled": False}
@@ -1104,16 +1168,11 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
         },
         "config_snapshot": {
             "device_id": edge_config["device_id"],
-            "bio_gate_mode": edge_config.get("bio_gate_mode", "nz_bird_margin"),
-            "bio_margin_threshold": edge_config.get("bio_margin_threshold"),
-            "excluded_margin_labels": edge_config.get("excluded_margin_labels", []),
-            "max_variable_buffer_frames": edge_config.get("max_variable_buffer_frames"),
-            "perch_window_seconds": edge_config.get("perch_window_seconds", 5.0),
-            "bio_threshold": edge_config["bio_threshold"],
-            "noise_threshold": edge_config["noise_threshold"],
-            "validation_sample_interval": edge_config["validation_sample_interval"],
-            "noise_labels": edge_config.get("noise_labels", []),
-            "biological_labels": edge_config.get("biological_labels", []),
+            "bio_gate_mode": gate_config.bio_gate_mode,
+            "bio_margin_threshold": gate_config.bio_margin_threshold,
+            "excluded_margin_labels": gate_config.excluded_margin_labels,
+            "max_variable_buffer_frames": gate_config.max_variable_buffer_frames,
+            "perch_window_seconds": gate_config.perch_window_seconds,
             "embedding_dim": edge_config["embedding_dim"],
         },
         "model": {
@@ -1131,11 +1190,13 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
             "buffer_metrics_csv": str(buffer_csv_path),
             "frame_metrics_csv": str(frame_csv_path),
             "gate_plot_events_csv": str(gate_event_csv_path),
+            "retained_clips_csv": str(retained_clip_csv_path),
             "gate_plot_dir": str(output_dir / "gate_plots"),
             "gate_plot_count": len(gate_plot_paths),
             "gate_plot_paths": gate_plot_paths,
             "metrics_json": str(metrics_path),
         },
+        "plot_style": plot_style,
         "totals": {
             "audio_file_count": sum(len(plan.audio_files) for plan in plans),
             "audio_seconds": sum(plan.audio_seconds for plan in plans),
@@ -1159,6 +1220,7 @@ def run_full_test(args: argparse.Namespace) -> dict[str, Any]:
     print(f"Buffer CSV written to: {buffer_csv_path}")
     print(f"Frame CSV written to: {frame_csv_path}")
     print(f"Gate plot events CSV written to: {gate_event_csv_path}")
+    print(f"Retained clips CSV written to: {retained_clip_csv_path}")
     if gate_plot_paths:
         print(f"Gate plots written to: {output_dir / 'gate_plots'}")
     return report

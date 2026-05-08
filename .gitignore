@@ -15,6 +15,7 @@ env/
 # Local configuration and secrets
 *.local.yaml
 *.local.yml
+scripts/single_file_gate_test.yaml
 .env
 .env.*
 !.env.example

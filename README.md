@@ -52,15 +52,20 @@ The current implementation plan is here:
 
 [docs/02_implementation/Phase_1_implementation_plan.md](docs/02_implementation/Phase_1_implementation_plan.md)
 
+The active revision cleanup plan for the locked margin gate and variable
+retained clips is here:
+
+[docs/02_implementation/Phase_1_revision_implementation_plan.md](docs/02_implementation/Phase_1_revision_implementation_plan.md)
+
 ## System Overview
 
 The planned system has two main sides.
 
 The edge node is a Raspberry Pi 5 in the field. It captures 48 kHz audio,
-processes it as 15-second buffers, downsamples to 32 kHz for Perch 2.0, and
-evaluates the three 5-second Perch frames independently. Each buffer produces
-metadata, biological and noise scores, NZ bird subset scores, and three
-1536-dimensional embeddings.
+processes it as 15-second inference buffers, downsamples to 32 kHz for Perch
+2.0, and evaluates the three 5-second Perch frames independently. Each buffer
+produces margin-gate evidence, NZ bird subset scores, excluded-label evidence,
+and three 1536-dimensional embeddings.
 
 The central hub is a LattePanda Alpha on a secure home network. It receives
 hourly MessagePack batches from the edge node, validates them with a FastAPI
@@ -80,9 +85,9 @@ flowchart LR
     C --> D[Perch CPU V2]
     D --> E[Logits]
     D --> F[1536-d embeddings]
-    E --> G[Noise, bio, and<br>NZ bird scoring]
-    G --> H[Retention decision]
-    H --> I[Retained FLACs]
+    E --> G[NZ bird margin gate<br>vs excluded labels]
+    G --> H[Variable retained<br>clip decisions]
+    H --> I[Retained 5/10/15s FLACs]
     H --> J[Edge SQLite DB]
     F --> J
     J --> K[MessagePack payload]
@@ -144,9 +149,8 @@ triggered frames save 10 seconds, and three consecutive triggered frames save
 candidate, subtracts the strongest configured excluded label (`Water`, `Train`,
 or `Vehicle`), and retains the clip when that margin is at least `0.55`.
 
-Configuration values such as paths, thresholds, API settings, and validation
-sampling cadence should live in YAML files rather than being hardcoded into
-scripts.
+Configuration values such as paths, threshold, excluded labels, API settings,
+and plot style live in YAML files rather than being hardcoded into scripts.
 
 ## SQLite Schema
 
@@ -170,15 +174,20 @@ erDiagram
     EDGE_BUFFER_EVENTS {
         int buffer_id PK
         text device_id
+        text source_file
+        int file_buffer_index
         text timestamp_utc
+        real inference_buffer_seconds
+        real perch_window_seconds
+        int perch_frame_count
         int audio_saved
         text retention_reason
-        text filepath
-        text max_bio_label
-        real max_bio_logit
-        text noise_logits
+        text max_nz_bird_common_name
+        text max_nz_bird_scientific_name
+        real max_nz_bird_logit
         text max_perch_label
         real max_perch_logit
+        text excluded_label_scores
         text nz_bird_logits
         text gate_mode
         real gate_threshold
@@ -198,7 +207,10 @@ erDiagram
         text filepath
         int start_segment_index
         int end_segment_index
+        real start_offset_s
+        real end_offset_s
         real duration_s
+        int triggered_frame_count
     }
 
     EDGE_EMBEDDING_SEGMENTS {
@@ -227,15 +239,20 @@ erDiagram
         text device_id
         int source_buffer_id
         int batch_id FK
+        text source_file
+        int file_buffer_index
         text timestamp_utc
+        real inference_buffer_seconds
+        real perch_window_seconds
+        int perch_frame_count
         int audio_saved
         text retention_reason
-        text filepath
-        text max_bio_label
-        real max_bio_logit
-        text noise_logits
+        text max_nz_bird_common_name
+        text max_nz_bird_scientific_name
+        real max_nz_bird_logit
         text max_perch_label
         real max_perch_logit
+        text excluded_label_scores
         text nz_bird_logits
         text gate_mode
         real gate_threshold
@@ -254,7 +271,10 @@ erDiagram
         text filepath
         int start_segment_index
         int end_segment_index
+        real start_offset_s
+        real end_offset_s
         real duration_s
+        int triggered_frame_count
     }
 
     HUB_EMBEDDING_SEGMENTS {
@@ -346,16 +366,16 @@ Run the full six-night Phase 1 test into an ignored output directory:
 The full test writes `phase1_full_test_metrics.json`, `buffer_metrics.csv`, and
 `frame_metrics.csv` under a date-stamped directory such as
 `outputs/phase1_full_test/080526/run-0854/`. It also writes
-`gate_plot_events.csv` and stacked one-minute mel spectrogram PNGs under
-`gate_plots/`. Add `--show-gate-plots` if you want each plot displayed in a
-matplotlib window while it is written. These files are intended as the input
-for the later `Phase1_test_report.md`.
+`retained_clips.csv`, `gate_plot_events.csv`, and stacked one-minute mel
+spectrogram PNGs under `gate_plots/`. Add `--show-gate-plots` if you want each
+plot displayed in a matplotlib window while it is written. These files are
+intended as the input for the later `Phase1_test_report.md`.
 
 Run the margin gate against one configured reference-file section:
 
 ```bash
 .venv/bin/python scripts/run_single_file_gate_test.py \
-  --config scripts/single_file_gate_test.yaml
+  --config scripts/single_file_gate_test.example.yaml
 ```
 
 The single-file gate test reads its audio path, start/end seconds, output
@@ -364,6 +384,11 @@ from YAML. By default it evaluates `20230527_213004.wav` from 300 to 700
 seconds and writes `summary.json`, `buffer_metrics.csv`, `frame_metrics.csv`,
 `retained_clips.csv`, and `gate_plot.png` under a date/run directory such as
 `outputs/single_file_gate_tests/080526/run-0854/`.
+
+For local tuning, copy the example to
+`scripts/single_file_gate_test.local.yaml` or `scripts/single_file_gate_test.yaml`.
+Both local filenames are ignored by Git. If `--config` is omitted, the script
+prefers the local file, then the shorthand file, then the tracked example.
 
 The latest end-to-end rehearsal report is stored at:
 
@@ -453,6 +478,9 @@ notebooks/
 scripts/
   label_extract.py
   match_north_island_perch_labels.py
+  run_phase1_full_test.py
+  run_single_file_gate_test.py
+  single_file_gate_test.example.yaml
 
 tests/
 ```
@@ -462,6 +490,7 @@ tests/
 - [Architecture concept](docs/01_concept/architecture_concept.md)
 - [Phase 1 desktop development concept](docs/01_concept/Phase_1_Desktop_Development.md)
 - [Phase 1 implementation plan](docs/02_implementation/Phase_1_implementation_plan.md)
+- [Phase 1 revision implementation plan](docs/02_implementation/Phase_1_revision_implementation_plan.md)
 - [Phase 1 schema decisions](docs/02_implementation/schema_decisions.md)
 - [Perch model inspection report](docs/02_implementation/perch_model_inspection_report.json)
 - [Phase 1 end-to-end rehearsal report](docs/02_implementation/phase1_e2e_rehearsal_report.json)
@@ -481,7 +510,7 @@ Zealand bird subset used during Phase 1.
 
 The generated file `labels/north_island_nz_perch_lablel.csv` maps Perch label
 numbers to local bird common names and scientific names. It is used for the
-`nz_bird_logits` field in the planned inference pipeline.
+`nz_bird_logits` and margin-gate evidence in the current inference pipeline.
 
 ## Development Notes
 

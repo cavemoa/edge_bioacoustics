@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import soundfile as sf
@@ -10,6 +11,7 @@ import soundfile as sf
 from datetime import datetime
 
 from scripts.run_single_file_gate_test import (
+    default_config_path,
     default_output_dir,
     load_audio_section,
     make_windows,
@@ -71,6 +73,20 @@ class SingleFileGateTestRunnerTests(unittest.TestCase):
         self.assertEqual(style["end_line_color"], "red")
         self.assertAlmostEqual(style["line_alpha"], 0.5)
         self.assertAlmostEqual(style["clip_bar_height_fraction"], 0.1)
+
+    def test_default_config_path_prefers_local_then_shorthand_then_example(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch("scripts.run_single_file_gate_test.SCRIPT_DIR", root):
+                self.assertEqual(default_config_path(), root / "single_file_gate_test.example.yaml")
+
+                shorthand = root / "single_file_gate_test.yaml"
+                shorthand.write_text("audio_file: example.wav\n", encoding="utf-8")
+                self.assertEqual(default_config_path(), shorthand)
+
+                local = root / "single_file_gate_test.local.yaml"
+                local.write_text("audio_file: local.wav\n", encoding="utf-8")
+                self.assertEqual(default_config_path(), local)
 
 
 if __name__ == "__main__":

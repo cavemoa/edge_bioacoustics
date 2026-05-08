@@ -41,12 +41,14 @@ if str(REPO_ROOT) not in sys.path:
 
 from edge_node_mock.src.bio_capture_loop import (
     AudioBuffer,
-    build_label_index,
+    save_retained_audio,
+    timestamp_from_filename,
+)
+from edge_node_mock.src.gate_config import validate_margin_gate_config
+from edge_node_mock.src.gate_logic import (
     build_margin_label_indexes,
     build_variable_retention_buffers,
-    save_retained_audio,
     score_frames,
-    timestamp_from_filename,
 )
 from edge_node_mock.src.inspect_perch_model import (
     _load_model,
@@ -72,8 +74,9 @@ BUFFER_FIELDNAMES = [
     "gate_trigger_count",
     "retained_clip_count",
     "retained_seconds",
-    "max_bio_label",
-    "max_bio_logit",
+    "max_nz_bird_common_name",
+    "max_nz_bird_scientific_name",
+    "max_nz_bird_logit",
     "max_perch_label",
     "max_perch_logit",
     "inference_seconds",
@@ -137,6 +140,17 @@ def default_output_dir(output_root: Path, run_name: str | None = None, now: date
     now = now or datetime.now()
     resolved_run_name = run_name or f"run-{now:%H%M}"
     return output_root / now.strftime("%d%m%y") / resolved_run_name
+
+
+def default_config_path() -> Path:
+    local_path = SCRIPT_DIR / "single_file_gate_test.local.yaml"
+    shorthand_path = SCRIPT_DIR / "single_file_gate_test.yaml"
+    example_path = SCRIPT_DIR / "single_file_gate_test.example.yaml"
+    if local_path.exists():
+        return local_path
+    if shorthand_path.exists():
+        return shorthand_path
+    return example_path
 
 
 def load_yaml_config(path: str | Path) -> dict[str, Any]:
@@ -473,20 +487,11 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
         retained_audio_dir.mkdir(parents=True, exist_ok=True)
 
     perch_labels = load_perch_labels(resolve_repo_path(edge_config["perch_label_path"]))
+    gate_config = validate_margin_gate_config(edge_config, perch_labels=perch_labels)
     nz_labels = load_nz_bird_labels(resolve_repo_path(edge_config["nz_bird_label_path"]), perch_labels)
-    noise_label_indexes = build_label_index(
-        perch_labels,
-        list(edge_config.get("noise_labels", [])),
-        group_name="noise_labels",
-    )
-    bio_label_indexes = build_label_index(
-        perch_labels,
-        list(edge_config.get("biological_labels", [])),
-        group_name="biological_labels",
-    )
     excluded_margin_label_indexes = build_margin_label_indexes(
         perch_labels,
-        list(edge_config.get("excluded_margin_labels", ["Water", "Train", "Vehicle"])),
+        gate_config.excluded_margin_labels,
     )
 
     model_started = time.perf_counter()
@@ -522,7 +527,7 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
         end_seconds=end_seconds,
         perch_sample_rate=int(edge_config.get("perch_sample_rate", 32000)),
     )
-    perch_window_seconds = float(edge_config.get("perch_window_seconds", 5.0))
+    perch_window_seconds = gate_config.perch_window_seconds
     windows = make_windows(
         perch_audio,
         perch_sample_rate,
@@ -536,15 +541,13 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
     frame_scores = score_frames(
         logits,
         perch_labels=perch_labels,
-        noise_label_indexes=noise_label_indexes,
-        bio_label_indexes=bio_label_indexes,
         nz_label_indexes=nz_labels,
         excluded_margin_label_indexes=excluded_margin_label_indexes,
-        bio_margin_threshold=float(edge_config.get("bio_margin_threshold", edge_config.get("bio_threshold", 0.55))),
+        bio_margin_threshold=gate_config.bio_margin_threshold,
     )
     retained_clips = build_variable_retention_buffers(
         frame_scores,
-        max_frames=int(edge_config.get("max_variable_buffer_frames", 3)),
+        max_frames=gate_config.max_variable_buffer_frames,
         perch_window_seconds=perch_window_seconds,
     )
 
@@ -565,7 +568,6 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
                 section_buffer,
                 retained_audio_dir,
                 str(edge_config["device_id"]),
-                clip.retention_reason,
                 clip,
             )
             saved_clips.append(replace(clip, filepath=saved_path))
@@ -622,7 +624,7 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
                 continue
             buffer_start_s = start_seconds + start_frame_index * perch_window_seconds
             buffer_end_s = start_seconds + end_frame_index * perch_window_seconds
-            max_bio_score = max(group, key=lambda score: float("-inf") if score.top_nz_logit is None else score.top_nz_logit)
+            max_nz_score = max(group, key=lambda score: float("-inf") if score.top_nz_logit is None else score.top_nz_logit)
             max_perch_score = max(group, key=lambda score: score.max_perch_logit)
             group_clips = clip_by_buffer.get(buffer_index, [])
             gate_trigger_count = sum(1 for score in group if score.frame_bio_gate)
@@ -640,13 +642,14 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
                     "section_end_s": buffer_end_s,
                     "retention_reason": "bio_hit" if gate_trigger_count else "dropped",
                     "audio_saved": int(bool(group_clips)),
-                    "gate_mode": edge_config.get("bio_gate_mode", "nz_bird_margin"),
-                    "gate_threshold": edge_config.get("bio_margin_threshold", edge_config.get("bio_threshold")),
+                    "gate_mode": gate_config.bio_gate_mode,
+                    "gate_threshold": gate_config.bio_margin_threshold,
                     "gate_trigger_count": gate_trigger_count,
                     "retained_clip_count": len(group_clips),
                     "retained_seconds": sum(clip.duration_s for clip in group_clips),
-                    "max_bio_label": max_bio_score.top_nz_common_name,
-                    "max_bio_logit": max_bio_score.top_nz_logit,
+                    "max_nz_bird_common_name": max_nz_score.top_nz_common_name,
+                    "max_nz_bird_scientific_name": max_nz_score.top_nz_scientific_name,
+                    "max_nz_bird_logit": max_nz_score.top_nz_logit,
                     "max_perch_label": max_perch_score.max_perch_label,
                     "max_perch_logit": max_perch_score.max_perch_logit,
                     "inference_seconds": inference_seconds / buffers_processed if buffers_processed else inference_seconds,
@@ -713,7 +716,7 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
             )
 
     summary = {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at_utc": utc_now_string(),
         "config_path": config["_config_path"],
         "edge_config_path": str(edge_config_path),
@@ -735,10 +738,10 @@ def run_gate_test(config_path: str | Path) -> dict[str, Any]:
         "retained_audio_saved": save_audio,
         "plot_style": plot_style,
         "gate": {
-            "mode": edge_config.get("bio_gate_mode", "nz_bird_margin"),
-            "threshold": edge_config.get("bio_margin_threshold", edge_config.get("bio_threshold")),
-            "excluded_margin_labels": edge_config.get("excluded_margin_labels", ["Water", "Train", "Vehicle"]),
-            "max_variable_buffer_frames": edge_config.get("max_variable_buffer_frames", 3),
+            "mode": gate_config.bio_gate_mode,
+            "threshold": gate_config.bio_margin_threshold,
+            "excluded_margin_labels": gate_config.excluded_margin_labels,
+            "max_variable_buffer_frames": gate_config.max_variable_buffer_frames,
         },
         "model": {
             "source": model_source,
@@ -786,8 +789,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--config",
-        default=SCRIPT_DIR / "single_file_gate_test.yaml",
-        help="YAML config describing the file, section, output directory, and gate settings.",
+        default=default_config_path(),
+        help=(
+            "YAML config describing the file, section, output directory, and plot settings. "
+            "Defaults to scripts/single_file_gate_test.local.yaml when present, then "
+            "scripts/single_file_gate_test.yaml, then scripts/single_file_gate_test.example.yaml."
+        ),
     )
     return parser
 

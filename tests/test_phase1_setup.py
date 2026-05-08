@@ -87,14 +87,21 @@ class Phase1SetupTest(unittest.TestCase):
             )
             self.assertTrue({"perch_vectors", "perch_vector_blobs"} & tables)
             self.assertEqual(self._metadata(conn, "embedding_dim"), "1536")
+            columns = self._columns(conn, "buffer_events")
+            self.assertIn("max_nz_bird_common_name", columns)
+            self.assertIn("excluded_label_scores", columns)
+            self.assertNotIn("filepath", columns)
+            self.assertNotIn("max_bio_label", columns)
+            self.assertNotIn("noise_logits", columns)
 
             conn.execute(
                 """
                 INSERT INTO buffer_events(
                     device_id, timestamp_utc, audio_saved, retention_reason,
-                    created_at_utc
+                    gate_mode, gate_threshold, margin_gate_scores, created_at_utc
                 )
-                VALUES ('pi_01', '2026-01-01T00:00:00Z', 0, 'dropped', '2026-01-01T00:00:00Z');
+                VALUES ('pi_01', '2026-01-01T00:00:00Z', 0, 'dropped',
+                        'nz_bird_margin', 0.55, '[]', '2026-01-01T00:00:00Z');
                 """
             )
             buffer_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
@@ -138,6 +145,12 @@ class Phase1SetupTest(unittest.TestCase):
             self.assertTrue({"hub_perch_vectors", "hub_perch_vector_blobs"} & tables)
             self.assertEqual(self._metadata(conn, "embedding_dim"), "1536")
             self.assertEqual(conn.execute("PRAGMA journal_mode;").fetchone()[0].lower(), "wal")
+            columns = self._columns(conn, "hub_buffer_events")
+            self.assertIn("max_nz_bird_common_name", columns)
+            self.assertIn("excluded_label_scores", columns)
+            self.assertNotIn("filepath", columns)
+            self.assertNotIn("max_bio_label", columns)
+            self.assertNotIn("noise_logits", columns)
 
             conn.execute(
                 """
@@ -153,9 +166,11 @@ class Phase1SetupTest(unittest.TestCase):
                 """
                 INSERT INTO hub_buffer_events(
                     device_id, source_buffer_id, batch_id, timestamp_utc,
-                    audio_saved, retention_reason, received_at_utc
+                    audio_saved, retention_reason, gate_mode, gate_threshold,
+                    margin_gate_scores, received_at_utc
                 )
-                VALUES ('pi_01', 7, ?, '2026-01-01T00:00:00Z', 0, 'dropped', '2026-01-01T00:00:01Z');
+                VALUES ('pi_01', 7, ?, '2026-01-01T00:00:00Z', 0, 'dropped',
+                        'nz_bird_margin', 0.55, '[]', '2026-01-01T00:00:01Z');
                 """,
                 (batch_id,),
             )
@@ -196,6 +211,10 @@ class Phase1SetupTest(unittest.TestCase):
                 "SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table');"
             ).fetchall()
         }
+
+    @staticmethod
+    def _columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+        return {row[1] for row in conn.execute(f"PRAGMA table_info({table_name});").fetchall()}
 
     @staticmethod
     def _metadata(conn: sqlite3.Connection, key: str) -> str:
