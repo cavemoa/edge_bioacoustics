@@ -136,10 +136,13 @@ tracked under `notebooks/example_audio/` so the walkthrough notebooks can be run
 by someone who has just cloned the repository. Generated notebook artifacts are
 written under `notebooks/output/`, which is intentionally ignored by Git.
 
-At the edge, the system stores every buffer event and every Perch embedding in
-SQLite. Full `.flac` audio is retained only when the buffer is a biological hit
-or a scheduled validation sample. This preserves a useful audit trail without
-trying to send raw audio over cellular.
+At the edge, the system stores every 15-second inference event and every Perch
+embedding in SQLite. Retained `.flac` audio is now stored as variable child
+clips: one triggered 5-second Perch frame saves 5 seconds, two consecutive
+triggered frames save 10 seconds, and three consecutive triggered frames save
+15 seconds. The current Phase 1 gate uses the strongest North Island NZ bird
+candidate, subtracts the strongest configured excluded label (`Water`, `Train`,
+or `Vehicle`), and retains the clip when that margin is at least `0.55`.
 
 Configuration values such as paths, thresholds, API settings, and validation
 sampling cadence should live in YAML files rather than being hardcoded into
@@ -155,9 +158,11 @@ storage uses `sqlite-vec` when available, with a blob-table fallback recorded in
 ```mermaid
 erDiagram
     EDGE_BUFFER_EVENTS ||--|{ EDGE_EMBEDDING_SEGMENTS : has
+    EDGE_BUFFER_EVENTS ||--o{ EDGE_RETAINED_AUDIO_CLIPS : saves
     EDGE_EMBEDDING_SEGMENTS ||--|| EDGE_VECTOR_STORAGE : stores
     EDGE_BUFFER_EVENTS ||..o{ INGESTION_BATCHES : syncs
     INGESTION_BATCHES ||--|{ HUB_BUFFER_EVENTS : contains
+    HUB_BUFFER_EVENTS ||--o{ HUB_RETAINED_AUDIO_CLIPS : mirrors
     HUB_BUFFER_EVENTS ||--|{ HUB_EMBEDDING_SEGMENTS : has
     HUB_EMBEDDING_SEGMENTS ||--|| HUB_VECTOR_STORAGE : stores
     INGESTION_BATCHES ||..|| HEALTH_METRICS : records
@@ -175,9 +180,25 @@ erDiagram
         text max_perch_label
         real max_perch_logit
         text nz_bird_logits
+        text gate_mode
+        real gate_threshold
+        int gate_trigger_count
+        int retained_clip_count
+        text margin_gate_scores
         text sync_status
         text created_at_utc
         text synced_at_utc
+    }
+
+    EDGE_RETAINED_AUDIO_CLIPS {
+        int clip_id PK
+        int buffer_id FK
+        int retention_index
+        text retention_reason
+        text filepath
+        int start_segment_index
+        int end_segment_index
+        real duration_s
     }
 
     EDGE_EMBEDDING_SEGMENTS {
@@ -216,7 +237,24 @@ erDiagram
         text max_perch_label
         real max_perch_logit
         text nz_bird_logits
+        text gate_mode
+        real gate_threshold
+        int gate_trigger_count
+        int retained_clip_count
+        text margin_gate_scores
         text received_at_utc
+    }
+
+    HUB_RETAINED_AUDIO_CLIPS {
+        int hub_clip_id PK
+        int hub_buffer_id FK
+        int source_clip_id
+        int retention_index
+        text retention_reason
+        text filepath
+        int start_segment_index
+        int end_segment_index
+        real duration_s
     }
 
     HUB_EMBEDDING_SEGMENTS {
@@ -306,8 +344,26 @@ Run the full six-night Phase 1 test into an ignored output directory:
 ```
 
 The full test writes `phase1_full_test_metrics.json`, `buffer_metrics.csv`, and
-`frame_metrics.csv` under `outputs/phase1_full_test/latest/`. Those files are
-intended as the input for the later `Phase1_test_report.md`.
+`frame_metrics.csv` under a date-stamped directory such as
+`outputs/phase1_full_test/080526/run-0854/`. It also writes
+`gate_plot_events.csv` and stacked one-minute mel spectrogram PNGs under
+`gate_plots/`. Add `--show-gate-plots` if you want each plot displayed in a
+matplotlib window while it is written. These files are intended as the input
+for the later `Phase1_test_report.md`.
+
+Run the margin gate against one configured reference-file section:
+
+```bash
+.venv/bin/python scripts/run_single_file_gate_test.py \
+  --config scripts/single_file_gate_test.yaml
+```
+
+The single-file gate test reads its audio path, start/end seconds, output
+directory, inference batch size, plot display setting, and save-audio setting
+from YAML. By default it evaluates `20230527_213004.wav` from 300 to 700
+seconds and writes `summary.json`, `buffer_metrics.csv`, `frame_metrics.csv`,
+`retained_clips.csv`, and `gate_plot.png` under a date/run directory such as
+`outputs/single_file_gate_tests/080526/run-0854/`.
 
 The latest end-to-end rehearsal report is stored at:
 
@@ -318,7 +374,7 @@ docs/02_implementation/phase1_e2e_rehearsal_report.json
 Run the unit tests:
 
 ```bash
-.venv/bin/python -m unittest tests.test_bio_capture_loop tests.test_ingestion_api tests.test_perch_inspection tests.test_phase1_setup tests.test_sender_daemon tests.test_watchdog_alert
+.venv/bin/python -m pytest
 ```
 
 ## Teaching Notebooks
@@ -336,8 +392,8 @@ creates inspectable teaching artifacts under `notebooks/output/`.
    - Stream the example recording into eight 15-second buffers.
    - Split each buffer into three 5-second Perch windows.
    - Run Perch inference, time each buffer, and inspect logits and embeddings.
-   - Apply the configured noise and biological label gates.
-   - Save retained `.flac` files.
+   - Apply the NZ-bird margin gate against excluded labels.
+   - Save variable 5/10/15 second retained `.flac` clips.
    - Write edge SQLite rows and a MessagePack payload for the next notebook.
 
 2. [notebooks/02_hub_ingestion_walkthrough.ipynb](notebooks/02_hub_ingestion_walkthrough.ipynb)
@@ -353,7 +409,9 @@ creates inspectable teaching artifacts under `notebooks/output/`.
 4. [notebooks/04_gate_logic_tuning.ipynb](notebooks/04_gate_logic_tuning.ipynb)
    is an interactive gate-design bench for a selected section of
    `20230527_213004.wav`. It plots a mel spectrogram aligned with 5-second
-   Perch top-label predictions and shows a top-3 label/logit review table.
+   Perch margin evidence, shows the strongest NZ bird candidate against the
+   strongest excluded label, and sketches the variable-buffer saves created by
+   consecutive triggered frames.
 
 ## Repository Map
 

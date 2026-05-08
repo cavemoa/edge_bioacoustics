@@ -32,6 +32,7 @@ class IngestionApiTest(unittest.TestCase):
 
         self.assertEqual(counts["ingestion_batches"], 1)
         self.assertEqual(counts["hub_buffer_events"], 1)
+        self.assertEqual(counts["hub_retained_audio_clips"], 1)
         self.assertEqual(counts["hub_embedding_segments"], 3)
         self.assertEqual(counts["health_metrics"], 1)
         self.assertEqual(counts["vectors"], 3)
@@ -119,6 +120,9 @@ class IngestionApiTest(unittest.TestCase):
             return {
                 "ingestion_batches": conn.execute("SELECT COUNT(*) FROM ingestion_batches;").fetchone()[0],
                 "hub_buffer_events": conn.execute("SELECT COUNT(*) FROM hub_buffer_events;").fetchone()[0],
+                "hub_retained_audio_clips": conn.execute(
+                    "SELECT COUNT(*) FROM hub_retained_audio_clips;"
+                ).fetchone()[0],
                 "hub_embedding_segments": conn.execute("SELECT COUNT(*) FROM hub_embedding_segments;").fetchone()[0],
                 "health_metrics": conn.execute("SELECT COUNT(*) FROM health_metrics;").fetchone()[0],
                 "vectors": conn.execute(f"SELECT COUNT(*) FROM {vector_table};").fetchone()[0],
@@ -157,6 +161,25 @@ def _detection(buffer_id: int, timestamp_utc: str) -> dict:
         "max_perch_label": "Animal",
         "max_perch_logit": 4.25,
         "nz_bird_logits": "[]",
+        "gate_mode": "nz_bird_margin",
+        "gate_threshold": 0.55,
+        "gate_trigger_count": 1,
+        "retained_clip_count": 1,
+        "margin_gate_scores": "[]",
+        "retained_audio_clips": [
+            {
+                "source_clip_id": buffer_id * 100,
+                "retention_index": 1,
+                "retention_reason": "bio_hit",
+                "filepath": "edge_node_mock/data/retained_audio/example_seg0-0_5s.flac",
+                "start_segment_index": 0,
+                "end_segment_index": 0,
+                "start_offset_s": 0.0,
+                "end_offset_s": 5.0,
+                "duration_s": 5.0,
+                "triggered_frame_count": 1,
+            }
+        ],
         "embedding_segments": [
             {"embedding_id": buffer_id * 10 + index, "segment_index": index, "embedding": embedding}
             for index in range(3)

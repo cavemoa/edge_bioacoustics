@@ -763,7 +763,7 @@ Variable-buffer retention policy:
 more than 3 consecutive trigger frames -> split into multiple max-15-second clips
 ```
 
-10.1 [ ] Update the edge YAML config templates.
+10.1 [x] Update the edge YAML config templates.
 
 Add new config fields to `edge_node_mock/config/edge_config.example.yaml` and
 the local config file:
@@ -783,7 +783,7 @@ Keep the old `bio_threshold`, `noise_threshold`, `noise_labels`, and
 `biological_labels` fields temporarily if existing scripts or notebooks still
 read them, but mark them as legacy first-pass gate settings in comments or docs.
 
-10.2 [ ] Refactor frame scoring in `bio_capture_loop.py`.
+10.2 [x] Refactor frame scoring in `bio_capture_loop.py`.
 
 Add a new per-frame score object or extend `FrameScores` with:
 
@@ -804,7 +804,7 @@ frame_bio_gate
 Use the full Perch logits for both the NZ bird subset and the excluded label
 set. Do not derive these values only from the displayed top-3 labels.
 
-10.3 [ ] Add reusable margin-gate functions.
+10.3 [x] Add reusable margin-gate functions.
 
 Suggested functions:
 
@@ -838,7 +838,7 @@ bio_margin_threshold must be numeric
 max_variable_buffer_frames must be >= 1
 ```
 
-10.4 [ ] Implement variable-buffer grouping.
+10.4 [x] Implement variable-buffer grouping.
 
 Add a function that groups consecutive triggered 5-second frames into proposed
 audio saves:
@@ -869,7 +869,7 @@ For Phase 1, use `retention_reason = 'bio_hit'` for all margin-triggered
 variable clips. Keep `validation_sample` behavior as a separate later decision;
 do not mix validation sampling into the first implementation of the new gate.
 
-10.5 [ ] Refactor audio saving.
+10.5 [x] Refactor audio saving.
 
 Change `save_retained_audio(...)` so it can save a slice of the current source
 buffer rather than always saving the full 15 seconds.
@@ -889,7 +889,7 @@ Suggested filename pattern:
 {device_id}_{timestamp}_{reason}_{source_stem}_{file_buffer_index:03d}_seg{start}-{end}_{duration}s.flac
 ```
 
-10.6 [ ] Decide whether `buffer_events` represents inference buffers or saved clips.
+10.6 [x] Decide whether `buffer_events` represents inference buffers or saved clips.
 
 Recommended Phase 1 refactor: keep `buffer_events` as the inference event table
 and add a new child table for variable saved clips. This preserves one row per
@@ -938,7 +938,7 @@ noise_logits = compact JSON of excluded-label evidence, not broad environmental 
 nz_bird_logits = compact JSON of top NZ birds per 5-second frame
 ```
 
-10.7 [ ] Update the hub schema.
+10.7 [x] Update the hub schema.
 
 Add a matching hub child table:
 
@@ -972,7 +972,7 @@ retained_clip_count INTEGER
 margin_gate_scores TEXT
 ```
 
-10.8 [ ] Update sender payload construction.
+10.8 [x] Update sender payload construction.
 
 Extend each detection payload with:
 
@@ -1003,7 +1003,7 @@ triggered_frame_count
 For Phase 1, continue sending file paths rather than binary audio. The hub mock
 is validating metadata movement, not transferring FLAC bytes.
 
-10.9 [ ] Update hub ingestion validation and inserts.
+10.9 [x] Update hub ingestion validation and inserts.
 
 Extend the Pydantic detection model in `ingestion_api.py` and insert retained
 clip rows inside the same transaction as the parent buffer event and embeddings.
@@ -1017,7 +1017,7 @@ clip duration must be 5, 10, or 15 seconds for the current Perch window size
 clip segment indexes must be between 0 and 2 for a single 15-second inference buffer
 ```
 
-10.10 [ ] Update tests for the new gate.
+10.10 [x] Update tests for the new gate.
 
 Add focused unit tests for:
 
@@ -1052,7 +1052,7 @@ hub inserts retained clips linked to the correct source buffer
 edge rows still transition to synced only after accepted hub ingest
 ```
 
-10.11 [ ] Update the full six-night test runner.
+10.11 [x] Update the full six-night test runner.
 
 Modify `scripts/run_phase1_full_test.py` so the metrics report includes:
 
@@ -1071,7 +1071,7 @@ margin distribution summary
 Update `outputs/phase1_full_test/latest/frame_metrics.csv` or add a companion
 CSV to include the new per-frame margin fields.
 
-10.12 [ ] Update notebooks.
+10.12 [x] Update notebooks.
 
 Update:
 
@@ -1090,7 +1090,7 @@ show retained_audio_clips rows alongside buffer_events rows
 show how one 15-second inference event can create a 5, 10, or 15 second saved FLAC
 ```
 
-10.13 [ ] Update documentation.
+10.13 [x] Update documentation.
 
 Update:
 
@@ -1161,7 +1161,7 @@ embedding row count remains three per 15-second inference event
 margin-gate metrics are present in the report
 ```
 
-10.16 [ ] Decide how to handle validation samples under variable retention.
+10.16 [x] Decide how to handle validation samples under variable retention.
 
 Open decision for after the first refactor:
 
@@ -1176,7 +1176,7 @@ shows we need retained negatives for reviewing false rejections.
 
 Deliverable:
 
-10.17 [ ] The edge mock uses the margin-based NZ bird gate, writes variable
+10.17 [x] The edge mock uses the margin-based NZ bird gate, writes variable
 retained clips, and still preserves one inference event with three embeddings
 for each 15-second Perch call.
 

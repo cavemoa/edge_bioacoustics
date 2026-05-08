@@ -43,6 +43,41 @@ class EmbeddingSegmentPayload(BaseModel):
         return self.source_embedding_id if self.source_embedding_id is not None else self.embedding_id
 
 
+class RetainedAudioClipPayload(BaseModel):
+    source_clip_id: int | None = None
+    retention_index: int
+    retention_reason: str
+    filepath: str
+    start_segment_index: int
+    end_segment_index: int
+    start_offset_s: float
+    end_offset_s: float
+    duration_s: float
+    triggered_frame_count: int
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("retention_reason")
+    @classmethod
+    def validate_retention_reason(cls, value: str) -> str:
+        allowed = {"bio_hit", "validation_sample"}
+        if value not in allowed:
+            raise ValueError(f"retention_reason must be one of {sorted(allowed)}")
+        return value
+
+    @model_validator(mode="after")
+    def validate_clip_span(self) -> "RetainedAudioClipPayload":
+        if self.start_segment_index < 0 or self.end_segment_index > 2:
+            raise ValueError("clip segment indexes must be between 0 and 2")
+        if self.end_segment_index < self.start_segment_index:
+            raise ValueError("end_segment_index must be >= start_segment_index")
+        if self.triggered_frame_count != self.end_segment_index - self.start_segment_index + 1:
+            raise ValueError("triggered_frame_count must match the retained segment span")
+        if self.duration_s not in {5.0, 10.0, 15.0}:
+            raise ValueError("duration_s must be 5, 10, or 15 seconds")
+        return self
+
+
 class DetectionPayload(BaseModel):
     buffer_id: int
     timestamp_utc: str
@@ -55,6 +90,12 @@ class DetectionPayload(BaseModel):
     max_perch_label: str | None = None
     max_perch_logit: float | None = None
     nz_bird_logits: str | None = None
+    gate_mode: str | None = None
+    gate_threshold: float | None = None
+    gate_trigger_count: int = 0
+    retained_clip_count: int = 0
+    margin_gate_scores: str | None = None
+    retained_audio_clips: list[RetainedAudioClipPayload] = Field(default_factory=list)
     embedding_segments: list[EmbeddingSegmentPayload] = Field(min_length=3, max_length=3)
 
     model_config = ConfigDict(extra="forbid")
@@ -77,6 +118,10 @@ class DetectionPayload(BaseModel):
         indexes = [segment.segment_index for segment in self.embedding_segments]
         if sorted(indexes) != [0, 1, 2]:
             raise ValueError("embedding_segments must contain segment_index values 0, 1, and 2")
+        if self.retained_clip_count != len(self.retained_audio_clips):
+            raise ValueError("retained_clip_count must equal len(retained_audio_clips)")
+        if int(self.audio_saved) != int(self.retained_clip_count > 0):
+            raise ValueError("audio_saved must equal retained_clip_count > 0")
         return self
 
 
@@ -206,9 +251,11 @@ def insert_batch(
                         device_id, source_buffer_id, batch_id, timestamp_utc,
                         audio_saved, retention_reason, filepath, max_bio_label,
                         max_bio_logit, noise_logits, max_perch_label,
-                        max_perch_logit, nz_bird_logits, received_at_utc
+                        max_perch_logit, nz_bird_logits, gate_mode, gate_threshold,
+                        gate_trigger_count, retained_clip_count, margin_gate_scores,
+                        received_at_utc
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                     """,
                     (
                         payload.device_id,
@@ -224,10 +271,41 @@ def insert_batch(
                         detection.max_perch_label,
                         detection.max_perch_logit,
                         detection.nz_bird_logits,
+                        detection.gate_mode,
+                        detection.gate_threshold,
+                        detection.gate_trigger_count,
+                        detection.retained_clip_count,
+                        detection.margin_gate_scores,
                         received_at_utc,
                     ),
                 )
                 hub_buffer_id = int(cursor.lastrowid)
+
+                for clip in detection.retained_audio_clips:
+                    conn.execute(
+                        """
+                        INSERT INTO hub_retained_audio_clips(
+                            hub_buffer_id, source_clip_id, retention_index, retention_reason,
+                            filepath, start_segment_index, end_segment_index, start_offset_s,
+                            end_offset_s, duration_s, triggered_frame_count, received_at_utc
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                        """,
+                        (
+                            hub_buffer_id,
+                            clip.source_clip_id,
+                            clip.retention_index,
+                            clip.retention_reason,
+                            clip.filepath,
+                            clip.start_segment_index,
+                            clip.end_segment_index,
+                            clip.start_offset_s,
+                            clip.end_offset_s,
+                            clip.duration_s,
+                            clip.triggered_frame_count,
+                            received_at_utc,
+                        ),
+                    )
 
                 for segment in detection.embedding_segments:
                     cursor = conn.execute(

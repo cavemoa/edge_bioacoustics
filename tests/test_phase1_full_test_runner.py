@@ -7,7 +7,9 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from scripts.run_phase1_full_test import count_audio_plan, discover_night_dirs, percentile
+from datetime import datetime
+
+from scripts.run_phase1_full_test import count_audio_plan, default_output_dir, discover_night_dirs, percentile
 
 
 class Phase1FullTestRunnerTests(unittest.TestCase):
@@ -54,6 +56,11 @@ class Phase1FullTestRunnerTests(unittest.TestCase):
         self.assertEqual(percentile([1.0, 2.0, 3.0], 0.5), 2.0)
         self.assertEqual(percentile([1.0, 2.0, 3.0, 4.0], 0.75), 3.25)
         self.assertIsNone(percentile([], 0.95))
+
+    def test_default_output_dir_uses_date_and_run_time(self) -> None:
+        path = default_output_dir(datetime(2026, 5, 8, 8, 54))
+
+        self.assertEqual(path.parts[-3:], ("phase1_full_test", "080526", "run-0854"))
 
 
 if __name__ == "__main__":

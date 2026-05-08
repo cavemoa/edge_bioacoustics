@@ -31,6 +31,10 @@ class SenderDaemonTest(unittest.TestCase):
         self.assertEqual(detections[0]["buffer_id"], 1)
         self.assertEqual(len(detections[0]["embedding_segments"]), 3)
         self.assertEqual(len(detections[0]["embedding_segments"][0]["embedding"]), 1536 * 4)
+        self.assertEqual(detections[0]["gate_mode"], "nz_bird_margin")
+        self.assertEqual(detections[0]["retained_clip_count"], 1)
+        self.assertEqual(len(detections[0]["retained_audio_clips"]), 1)
+        self.assertEqual(detections[0]["retained_audio_clips"][0]["duration_s"], 5.0)
         self.assertTrue(config_exists)
 
     def test_dry_run_does_not_update_sync_state(self) -> None:
@@ -126,15 +130,29 @@ class SenderDaemonTest(unittest.TestCase):
                             device_id, timestamp_utc, audio_saved, retention_reason,
                             filepath, max_bio_label, max_bio_logit, noise_logits,
                             max_perch_label, max_perch_logit, nz_bird_logits,
+                            gate_mode, gate_threshold, gate_trigger_count,
+                            retained_clip_count, margin_gate_scores,
                             sync_status, created_at_utc
                         )
                         VALUES ('pi_01', ?, 1, 'bio_hit', 'example.flac',
                                 'Animal', 3.5, '[]', 'Animal', 3.5, '[]',
+                                'nz_bird_margin', 0.55, 1, 1, '[]',
                                 'pending', ?);
                         """,
                         (now, now),
                     )
                     buffer_id = int(cursor.lastrowid)
+                    conn.execute(
+                        """
+                        INSERT INTO retained_audio_clips(
+                            buffer_id, retention_index, retention_reason, filepath,
+                            start_segment_index, end_segment_index, start_offset_s,
+                            end_offset_s, duration_s, triggered_frame_count, created_at_utc
+                        )
+                        VALUES (?, 1, 'bio_hit', 'example_seg0-0_5s.flac', 0, 0, 0.0, 5.0, 5.0, 1, ?);
+                        """,
+                        (buffer_id, now),
+                    )
                     for segment_index in range(3):
                         cursor = conn.execute(
                             "INSERT INTO embedding_segments(buffer_id, segment_index) VALUES (?, ?);",

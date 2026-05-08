@@ -15,6 +15,14 @@ from mock_common.config import load_config
 from mock_common.sqlite_vectors import create_vector_storage, set_metadata
 
 
+def ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, column_sql: str) -> None:
+    """Add a column to an existing table when a Phase 1 schema evolves."""
+
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table_name});").fetchall()}
+    if column_name not in columns:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_sql};")
+
+
 def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
     config = load_config(config_path)
     db_path = Path(str(config["edge_db_path"]))
@@ -52,14 +60,57 @@ def init_edge_db(config_path: str | Path, *, reset: bool = False) -> Path:
                 max_perch_label TEXT,
                 max_perch_logit REAL,
                 nz_bird_logits TEXT,
+                gate_mode TEXT,
+                gate_threshold REAL,
+                gate_trigger_count INTEGER NOT NULL DEFAULT 0,
+                retained_clip_count INTEGER NOT NULL DEFAULT 0,
+                margin_gate_scores TEXT,
                 sync_status TEXT NOT NULL DEFAULT 'pending' CHECK(sync_status IN ('pending', 'in_flight', 'synced', 'failed')),
                 created_at_utc TEXT NOT NULL,
                 synced_at_utc TEXT
             );
             """
         )
+        ensure_column(conn, "buffer_events", "gate_mode", "gate_mode TEXT")
+        ensure_column(conn, "buffer_events", "gate_threshold", "gate_threshold REAL")
+        ensure_column(
+            conn,
+            "buffer_events",
+            "gate_trigger_count",
+            "gate_trigger_count INTEGER NOT NULL DEFAULT 0",
+        )
+        ensure_column(
+            conn,
+            "buffer_events",
+            "retained_clip_count",
+            "retained_clip_count INTEGER NOT NULL DEFAULT 0",
+        )
+        ensure_column(conn, "buffer_events", "margin_gate_scores", "margin_gate_scores TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_buffer_events_sync_status ON buffer_events(sync_status);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_buffer_events_timestamp ON buffer_events(timestamp_utc);")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS retained_audio_clips (
+                clip_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                buffer_id INTEGER NOT NULL,
+                retention_index INTEGER NOT NULL,
+                retention_reason TEXT NOT NULL CHECK(retention_reason IN ('bio_hit', 'validation_sample')),
+                filepath TEXT NOT NULL,
+                start_segment_index INTEGER NOT NULL,
+                end_segment_index INTEGER NOT NULL,
+                start_offset_s REAL NOT NULL,
+                end_offset_s REAL NOT NULL,
+                duration_s REAL NOT NULL,
+                triggered_frame_count INTEGER NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                FOREIGN KEY(buffer_id) REFERENCES buffer_events(buffer_id) ON DELETE CASCADE,
+                UNIQUE(buffer_id, retention_index)
+            );
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_retained_audio_clips_buffer_id ON retained_audio_clips(buffer_id);"
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS embedding_segments (

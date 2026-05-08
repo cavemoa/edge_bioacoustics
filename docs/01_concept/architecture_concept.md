@@ -32,11 +32,11 @@ The audio capture and inference pipeline operates asynchronously and is complete
 *   **Buffer:** Audio is captured into a continuous 15-second ring buffer.
 *   **Sample Rate:** Native 32kHz (downsampled from standard 48kHz to optimize storage and perfectly match inference requirements).
 *   **Inference Engine:** Perch 2.0.
-*   **Gating & Filtering:** FSD50K labels are used to score the audio buffer. If the noise scores (wind, rain, mechanical) outweigh biological scores, the buffer is discarded.
+*   **Gating & Filtering:** Perch logits are evaluated per 5-second frame. The current Phase 1 gate compares the strongest North Island NZ bird candidate against the strongest configured excluded FSD50K label (`Water`, `Train`, or `Vehicle`). A frame is biological when the NZ bird logit beats the excluded-label logit by the configured margin and the overall top label is not one of the excluded labels.
 
 ### 4.2 Edge Storage
-*   **Audio Storage:** If biological activity is detected, the 15-second buffer is compressed to a lossless `.flac` file and saved to the Pi's local storage for future retrieval or manual validation. **Audio files are never transmitted over 4G.**
-*   **Database Storage:** Metadata (timestamp, filepath, gating scores) and the resulting three 1536-dimensional float vector embeddings are written to a local `sqlite-vector` database. 
+*   **Audio Storage:** If biological activity is detected, only the triggered span is compressed to a lossless `.flac` file and saved to the Pi's local storage for future retrieval or manual validation. One triggered 5-second frame saves 5 seconds, two consecutive frames save 10 seconds, and three consecutive frames save the full 15-second inference buffer. **Audio files are never transmitted over 4G.**
+*   **Database Storage:** Metadata (timestamp, gating scores, retained clip metadata) and the resulting three 1536-dimensional float vector embeddings are written to a local `sqlite-vector` database.
 *   **Vector Format:** Embeddings are stored natively as binary `BLOB`s (raw 32-bit floats) to preserve absolute precision.
 *   **State Tracking:** Newly inserted rows are flagged with the column `sync_status = 'pending'`.
 
@@ -131,9 +131,9 @@ This is your continuous, high-priority loop. It handles the actual listening and
 *   **Core Responsibilities:**
     *   Maintain a 15-second rolling audio buffer at 32kHz.
     *   Pass the buffer to Perch 2.0 to generate embeddings and logits.
-    *   Gate the results: Check if the FSD50K positive scores outweigh the noise scores.
-    *   If positive: Compress the buffer to `.flac` and save it to the local SD card/USB drive.
-    *   Insert the FSD50K scores, timestamp, file path, and raw binary embeddings into the local `sqlite-vector` database with `sync_status = 'pending'`.
+    *   Gate the results: compare the strongest NZ bird label against the strongest excluded label using a margin threshold.
+    *   If positive: compress the triggered 5/10/15-second span to `.flac` and save it to the local SD card/USB drive.
+    *   Insert margin scores, retained clip metadata, timestamp, file path, and raw binary embeddings into the local `sqlite-vector` database with `sync_status = 'pending'`.
 
 #### **2. `sender_daemon.py` (The Transport & Telemetry Worker)**
 This script acts as your courier. It wakes up, gathers the data, checks the Pi's health, and ships it all to the server.

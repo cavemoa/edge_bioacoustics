@@ -86,6 +86,12 @@ def load_pending_detections(config: dict[str, Any], *, limit: int | None = None)
                     "max_perch_label": row["max_perch_label"],
                     "max_perch_logit": row["max_perch_logit"],
                     "nz_bird_logits": row["nz_bird_logits"],
+                    "gate_mode": row_value(row, "gate_mode"),
+                    "gate_threshold": row_value(row, "gate_threshold"),
+                    "gate_trigger_count": int(row_value(row, "gate_trigger_count", 0)),
+                    "retained_clip_count": int(row_value(row, "retained_clip_count", 0)),
+                    "margin_gate_scores": row_value(row, "margin_gate_scores"),
+                    "retained_audio_clips": load_retained_audio_clips(conn, buffer_id),
                     "embedding_segments": [
                         {
                             "embedding_id": int(segment["embedding_id"]),
@@ -98,6 +104,45 @@ def load_pending_detections(config: dict[str, Any], *, limit: int | None = None)
             )
 
     return detections
+
+
+def row_value(row: sqlite3.Row, key: str, default: Any = None) -> Any:
+    return row[key] if key in row.keys() else default
+
+
+def load_retained_audio_clips(conn: sqlite3.Connection, buffer_id: int) -> list[dict[str, Any]]:
+    tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table';"
+        ).fetchall()
+    }
+    if "retained_audio_clips" not in tables:
+        return []
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM retained_audio_clips
+        WHERE buffer_id = ?
+        ORDER BY retention_index;
+        """,
+        (buffer_id,),
+    ).fetchall()
+    return [
+        {
+            "source_clip_id": int(row["clip_id"]),
+            "retention_index": int(row["retention_index"]),
+            "retention_reason": row["retention_reason"],
+            "filepath": row["filepath"],
+            "start_segment_index": int(row["start_segment_index"]),
+            "end_segment_index": int(row["end_segment_index"]),
+            "start_offset_s": float(row["start_offset_s"]),
+            "end_offset_s": float(row["end_offset_s"]),
+            "duration_s": float(row["duration_s"]),
+            "triggered_frame_count": int(row["triggered_frame_count"]),
+        }
+        for row in rows
+    ]
 
 
 def gather_telemetry(config: dict[str, Any]) -> dict[str, float | str | None]:

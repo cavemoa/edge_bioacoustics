@@ -1,0 +1,21 @@
+edge_config_path: edge_node_mock/config/edge_config.local.yaml
+#audio_file: /data/petrel_acoustics/raw_audio/doc_ar4/rapanui_AR4_june_2023/20230527/20230527_213004.wav
+audio_file: /data/petrel_acoustics/raw_audio/doc_ar4/rapanui_AR4_june_2023/20230527/20230527_231504.wav
+section_start_seconds: 0.0
+section_end_seconds: 
+output_root: outputs/single_file_gate_tests
+run_name: null
+buffer_seconds: 15.0
+include_partial_final_buffer: false
+inference_batch_size: 24
+save_retained_audio: false
+show_gate_plot: true
+no_gate_plot: false
+plot_style:
+  start_line_color: lime
+  end_line_color: red
+  clip_bar_color: lime
+  line_alpha: 0.75
+  clip_bar_alpha: 0.75
+  line_width: 1.6
+  clip_bar_height_fraction: 0.06

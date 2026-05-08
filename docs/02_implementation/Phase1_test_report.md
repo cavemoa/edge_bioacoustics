@@ -34,6 +34,15 @@ too permissive for storage reduction. All 16,560 buffers were retained as
 end-to-end retention path, but it does not yet provide a useful field retention
 policy.
 
+Follow-up gate-tuning work has now replaced that first-pass policy in the code
+base with an NZ-bird margin gate and variable-length retained clips. The new
+default compares the strongest North Island NZ bird candidate with the strongest
+of `Water`, `Train`, and `Vehicle`, then retains the frame when the margin is at
+least `0.55`. Consecutive triggered 5-second frames are saved as 5, 10, or
+15-second FLAC clips. This report remains the baseline result for the old broad
+label gate; the next six-night run should regenerate the metrics with the new
+schema version and retained clip counts.
+
 ## Test Input
 
 | Item | Value |

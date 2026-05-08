@@ -1,4 +1,5 @@
 fastapi
+matplotlib
 msgpack
 numpy
 pandas

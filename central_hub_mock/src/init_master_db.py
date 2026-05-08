@@ -15,6 +15,14 @@ from mock_common.config import load_config
 from mock_common.sqlite_vectors import create_vector_storage, set_metadata
 
 
+def ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, column_sql: str) -> None:
+    """Add a column to an existing table when a Phase 1 schema evolves."""
+
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table_name});").fetchall()}
+    if column_name not in columns:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_sql};")
+
+
 def init_master_db(config_path: str | Path, *, reset: bool = False) -> Path:
     config = load_config(config_path)
     db_path = Path(str(config["master_db_path"]))
@@ -66,13 +74,57 @@ def init_master_db(config_path: str | Path, *, reset: bool = False) -> Path:
                 max_perch_label TEXT,
                 max_perch_logit REAL,
                 nz_bird_logits TEXT,
+                gate_mode TEXT,
+                gate_threshold REAL,
+                gate_trigger_count INTEGER NOT NULL DEFAULT 0,
+                retained_clip_count INTEGER NOT NULL DEFAULT 0,
+                margin_gate_scores TEXT,
                 received_at_utc TEXT NOT NULL,
                 FOREIGN KEY(batch_id) REFERENCES ingestion_batches(batch_id) ON DELETE CASCADE,
                 UNIQUE(device_id, source_buffer_id)
             );
             """
         )
+        ensure_column(conn, "hub_buffer_events", "gate_mode", "gate_mode TEXT")
+        ensure_column(conn, "hub_buffer_events", "gate_threshold", "gate_threshold REAL")
+        ensure_column(
+            conn,
+            "hub_buffer_events",
+            "gate_trigger_count",
+            "gate_trigger_count INTEGER NOT NULL DEFAULT 0",
+        )
+        ensure_column(
+            conn,
+            "hub_buffer_events",
+            "retained_clip_count",
+            "retained_clip_count INTEGER NOT NULL DEFAULT 0",
+        )
+        ensure_column(conn, "hub_buffer_events", "margin_gate_scores", "margin_gate_scores TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_hub_buffer_events_device_source ON hub_buffer_events(device_id, source_buffer_id);")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS hub_retained_audio_clips (
+                hub_clip_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                hub_buffer_id INTEGER NOT NULL,
+                source_clip_id INTEGER,
+                retention_index INTEGER NOT NULL,
+                retention_reason TEXT NOT NULL CHECK(retention_reason IN ('bio_hit', 'validation_sample')),
+                filepath TEXT NOT NULL,
+                start_segment_index INTEGER NOT NULL,
+                end_segment_index INTEGER NOT NULL,
+                start_offset_s REAL NOT NULL,
+                end_offset_s REAL NOT NULL,
+                duration_s REAL NOT NULL,
+                triggered_frame_count INTEGER NOT NULL,
+                received_at_utc TEXT NOT NULL,
+                FOREIGN KEY(hub_buffer_id) REFERENCES hub_buffer_events(hub_buffer_id) ON DELETE CASCADE,
+                UNIQUE(hub_buffer_id, retention_index)
+            );
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hub_retained_audio_clips_buffer_id ON hub_retained_audio_clips(hub_buffer_id);"
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS hub_embedding_segments (

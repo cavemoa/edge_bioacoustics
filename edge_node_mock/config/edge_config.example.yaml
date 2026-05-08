@@ -19,6 +19,15 @@ telemetry_defaults:
   cpu_temp_c: 45.0
   battery_voltage: 12.4
   solar_amps: 0.0
+bio_gate_mode: nz_bird_margin
+bio_margin_threshold: 0.55
+excluded_margin_labels:
+  - Water
+  - Train
+  - Vehicle
+max_variable_buffer_frames: 3
+perch_window_seconds: 5.0
+# Legacy first-pass gate settings retained while notebooks and reports migrate.
 bio_threshold: 2.0
 noise_threshold: 5.0
 noise_labels:

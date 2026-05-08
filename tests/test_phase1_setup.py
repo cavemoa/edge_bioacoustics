@@ -82,7 +82,9 @@ class Phase1SetupTest(unittest.TestCase):
         with sqlite3.connect(db_path) as conn:
             conn.execute("PRAGMA foreign_keys=ON;")
             tables = self._tables(conn)
-            self.assertTrue({"buffer_events", "embedding_segments", "schema_metadata"}.issubset(tables))
+            self.assertTrue(
+                {"buffer_events", "retained_audio_clips", "embedding_segments", "schema_metadata"}.issubset(tables)
+            )
             self.assertTrue({"perch_vectors", "perch_vector_blobs"} & tables)
             self.assertEqual(self._metadata(conn, "embedding_dim"), "1536")
 
@@ -96,6 +98,17 @@ class Phase1SetupTest(unittest.TestCase):
                 """
             )
             buffer_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
+            conn.execute(
+                """
+                INSERT INTO retained_audio_clips(
+                    buffer_id, retention_index, retention_reason, filepath,
+                    start_segment_index, end_segment_index, start_offset_s,
+                    end_offset_s, duration_s, triggered_frame_count, created_at_utc
+                )
+                VALUES (?, 1, 'bio_hit', 'example.flac', 0, 0, 0.0, 5.0, 5.0, 1, '2026-01-01T00:00:00Z');
+                """,
+                (buffer_id,),
+            )
             for index in range(3):
                 conn.execute(
                     "INSERT INTO embedding_segments(buffer_id, segment_index) VALUES (?, ?);",
@@ -107,6 +120,7 @@ class Phase1SetupTest(unittest.TestCase):
             )
             conn.execute("DELETE FROM buffer_events WHERE buffer_id = ?;", (buffer_id,))
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM embedding_segments;").fetchone()[0], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM retained_audio_clips;").fetchone()[0], 0)
 
     def _assert_master_schema(self, db_path: Path) -> None:
         with sqlite3.connect(db_path) as conn:
@@ -115,6 +129,7 @@ class Phase1SetupTest(unittest.TestCase):
             expected = {
                 "ingestion_batches",
                 "hub_buffer_events",
+                "hub_retained_audio_clips",
                 "hub_embedding_segments",
                 "health_metrics",
                 "schema_metadata",
@@ -145,6 +160,17 @@ class Phase1SetupTest(unittest.TestCase):
                 (batch_id,),
             )
             hub_buffer_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
+            conn.execute(
+                """
+                INSERT INTO hub_retained_audio_clips(
+                    hub_buffer_id, source_clip_id, retention_index, retention_reason,
+                    filepath, start_segment_index, end_segment_index, start_offset_s,
+                    end_offset_s, duration_s, triggered_frame_count, received_at_utc
+                )
+                VALUES (?, 99, 1, 'bio_hit', 'example.flac', 0, 0, 0.0, 5.0, 5.0, 1, '2026-01-01T00:00:01Z');
+                """,
+                (hub_buffer_id,),
+            )
             for index in range(3):
                 conn.execute(
                     "INSERT INTO hub_embedding_segments(hub_buffer_id, source_embedding_id, segment_index) VALUES (?, ?, ?);",
@@ -159,6 +185,7 @@ class Phase1SetupTest(unittest.TestCase):
             )
             conn.execute("DELETE FROM ingestion_batches WHERE batch_id = ?;", (batch_id,))
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM hub_buffer_events;").fetchone()[0], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM hub_retained_audio_clips;").fetchone()[0], 0)
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM hub_embedding_segments;").fetchone()[0], 0)
 
     @staticmethod
